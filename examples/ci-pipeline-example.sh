@@ -7,7 +7,7 @@ set -e
 # Download the script if it doesn't exist
 if [[ ! -f ./gh-refme ]]; then
   echo "Downloading gh-refme..."
-  curl -s -o gh-refme https://raw.githubusercontent.com/yourusername/gh-refme/main/gh-refme
+  curl -s -o gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
   chmod +x gh-refme
 fi
 

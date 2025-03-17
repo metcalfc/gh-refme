@@ -11,7 +11,7 @@ GitHub CLI extensions are add-ons that extend the functionality of the `gh` comm
 ### Method 1: Install from GitHub Repository
 
 ```bash
-gh extension install yourusername/gh-refme
+gh extension install metcalfc/gh-refme
 ```
 
 ### Method 2: Install from Local Directory
@@ -20,7 +20,7 @@ If you're developing the extension or have the code locally:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/gh-refme.git
+git clone https://github.com/metcalfc/gh-refme.git
 
 # Install the extension from the local directory
 cd gh-refme
@@ -34,7 +34,7 @@ gh extension install .
 mkdir -p ~/.local/share/gh/extensions
 
 # Clone the repository directly to the extensions directory
-git clone https://github.com/yourusername/gh-refme.git ~/.local/share/gh/extensions/gh-refme
+git clone https://github.com/metcalfc/gh-refme.git ~/.local/share/gh/extensions/gh-refme
 ```
 
 ## Usage

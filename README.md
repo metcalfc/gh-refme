@@ -21,7 +21,7 @@ A lightweight tool to convert GitHub references (tags, branches) to their corres
 
 ```bash
 # Download the script
-curl -o gh-refme https://raw.githubusercontent.com/yourusername/gh-refme/main/gh-refme
+curl -o gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
 chmod +x gh-refme
 
 # Run in interactive mode (recommended for first-time users)
@@ -41,7 +41,7 @@ chmod +x gh-refme
 
 ```bash
 # Install the extension
-gh extension install yourusername/gh-refme
+gh extension install metcalfc/gh-refme
 
 # Run in interactive mode
 gh refme interactive
@@ -148,7 +148,7 @@ jobs:
       
       - name: Download gh-refme script
         run: |
-          curl -o /tmp/gh-refme https://raw.githubusercontent.com/yourusername/gh-refme/main/gh-refme
+          curl -o /tmp/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
           chmod +x /tmp/gh-refme
       
       - name: Create branch for changes

@@ -9,7 +9,7 @@
 # https://cli.github.com/
 
 # Install the extension
-gh extension install yourusername/gh-refme
+gh extension install metcalfc/gh-refme
 ```
 
 ### Using the GitHub CLI Extension
