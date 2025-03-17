@@ -22,8 +22,10 @@ VERSION="1.1.0"
 # Detect if we're being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
   RUNNING_AS_EXTENSION=true
+  CMD_NAME="gh refme"
 else
   RUNNING_AS_EXTENSION=false
+  CMD_NAME="gh-refme"
 fi
 
 # Clean up temp directory on exit
@@ -64,16 +66,12 @@ is_safe_name() {
 
 # Helper: Print usage information
 usage() {
-  local cmd_name="gh-refme"
-  if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-    cmd_name="gh refme"
-  fi
   
   cat << EOF
-${cmd_name} v${VERSION} - Convert GitHub references to commit hashes
+${CMD_NAME} v${VERSION} - Convert GitHub references to commit hashes
 
 USAGE:
-  ${cmd_name} [SUBCOMMAND] [OPTIONS] 
+  ${CMD_NAME} [SUBCOMMAND] [OPTIONS] 
 
 SUBCOMMANDS:
   convert <owner/repo@ref>    Convert a single reference
@@ -86,22 +84,16 @@ OPTIONS:
   -v, --version               Show version information
 
 EXAMPLES:
-  ${cmd_name} convert actions/checkout@v4
-  ${cmd_name} file .github/workflows/ci.yml
-  ${cmd_name} dir ./my-repo --dry-run
+  ${CMD_NAME} convert actions/checkout@v4
+  ${CMD_NAME} file .github/workflows/ci.yml
+  ${CMD_NAME} dir ./my-repo --dry-run
 
 NOTES:
-EOF
-
-  if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-    echo "  For API authentication, the tool will use your GitHub CLI authentication"
-  else
-    cat << EOF
   For API authentication, the tool will use:
   1. The GITHUB_TOKEN environment variable
   2. An authenticated gh CLI session if available
 EOF
-  fi
+
   exit 0
 }
 
@@ -529,26 +521,15 @@ main() {
       mode="dir"
       shift
       ;;
-    interactive)
-      error "Interactive mode is not implemented in this version"
-      ;;
     -h|--help)
       usage
       ;;
     -v|--version)
-      if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-        echo "gh refme v${VERSION}"
-      else
-        echo "gh-refme v${VERSION}"
-      fi
+      echo "${CMD_NAME} v${VERSION}"
       exit 0
       ;;
     *)
-      if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-        error "Unknown subcommand: $1. Run 'gh refme --help' for usage."
-      else
-        error "Unknown subcommand: $1. Run 'gh-refme --help' for usage."
-      fi
+      error "Unknown subcommand: $1. Run '${CMD_NAME} --help' for usage."
       ;;
   esac
   
@@ -563,11 +544,7 @@ main() {
         usage
         ;;
       -v|--version)
-        if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-          echo "gh refme v${VERSION}"
-        else
-          echo "gh-refme v${VERSION}"
-        fi
+        echo "${CMD_NAME} v${VERSION}"
         exit 0
         ;;
       -*)
@@ -587,12 +564,8 @@ main() {
   
   # Check for required arguments
   if [[ ${#targets[@]} -eq 0 ]]; then
-    local cmd_name="gh-refme"
-    if [[ "$RUNNING_AS_EXTENSION" == "true" ]]; then
-      cmd_name="gh refme"
-    fi
-    
-    error "No targets specified. Run '${cmd_name} --help' for usage."
+    # If no targets are specified, show usage message
+    error "No targets specified. Run '${CMD_NAME} --help' for usage."
   fi
   
   # Run in the appropriate mode
