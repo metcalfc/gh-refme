@@ -35,28 +35,25 @@ error() {
   exit 1
 }
 
-# Helper: Check if string contains dangerous characters
+# Helper: Check if string contains dangerous shell characters
 has_dangerous_chars() {
   local string="$1"
-  [[ "$string" == *\$* || "$string" == *\(* || "$string" == *\)* || 
-     "$string" == *\`* || "$string" == *\;* || "$string" == *\&* || 
-     "$string" == *\|* || "$string" == *\<* || "$string" == *\>* || 
-     "$string" == *\{* || "$string" == *\}* || "$string" == *\[* || 
-     "$string" == *\]* || "$string" == *\"* || "$string" == *\'* || 
-     "$string" == *\\* ]]
+  # Check for specific dangerous shell characters
+  echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
 }
 
-# Helper: Check if path contains suspicious elements
-has_suspicious_path_elements() {
+# Helper: Check if string contains path traversal patterns
+has_path_traversal() {
   local path="$1"
-  
   # Check for common path traversal patterns
-  if [[ "$path" == *..* || "$path" == *~* ]]; then
-    return 0  # True, has suspicious elements
-  fi
-  
-  # Check for shell special characters using the reusable function
-  has_dangerous_chars "$path"
+  [[ "$path" == *..* || "$path" == *~* ]]
+}
+
+# Helper: Check if path has any security issues
+has_path_security_issues() {
+  local path="$1"
+  # Check for path traversal first
+  has_path_traversal "$path" || has_dangerous_chars "$path"
 }
 
 # Helper: Validate input string matches safe pattern
@@ -322,8 +319,8 @@ process_workflow_file() {
   fi
   
   # Security check: prevent path traversal
-  # First, reject any paths with suspicious patterns
-  if has_suspicious_path_elements "$file"; then
+  # First, reject any paths with security issues
+  if has_path_security_issues "$file"; then
     error "Invalid file path: $file (path traversal attempt detected)"
   fi
   
