@@ -72,22 +72,24 @@ jobs:
           echo "|------|-------------------|---------------|" >> pr_description.md
           
           # Extract changes from the log file
-          grep "Updated " refme_output.log | while read -r line; do
-            if [[ "$line" =~ Line[[:space:]]+[0-9]+:[[:space:]]+Updated[[:space:]]+([^[:space:]]+)[[:space:]]+\-\>[[:space:]]+([^[:space:]]+) ]]; then
+          CURRENT_FILE=""
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^Processing[[:space:]](.+)\.\.\. ]]; then
+              CURRENT_FILE="${BASH_REMATCH[1]}"
+              echo "Now processing file: $CURRENT_FILE"
+            elif [[ "$line" =~ Line[[:space:]]+[0-9]+:[[:space:]]+Updated[[:space:]]+([^[:space:]]+)[[:space:]]+\-\>[[:space:]]+([^[:space:]]+) ]]; then
               ORIGINAL_REF="${BASH_REMATCH[1]}"
               PINNED_HASH="${BASH_REMATCH[2]}"
               
-              # Extract file name from the line before
-              FILE=$(grep -B 1 "$line" refme_output.log | head -1 | grep -o "Processing .*\.\.\." | sed 's/Processing \(.*\)\.\.\./\1/')
-              if [ -z "$FILE" ]; then
-                FILE="Unknown file"
+              if [ -n "$CURRENT_FILE" ]; then
+                WORKFLOW_FILE=$(basename "$CURRENT_FILE")
+                echo "Found change in $WORKFLOW_FILE: $ORIGINAL_REF -> $PINNED_HASH"
+                
+                # Add row to the table
+                echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH |" >> pr_description.md
               fi
-              WORKFLOW_FILE=$(basename "$FILE")
-              
-              # Add row to the table
-              echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH |" >> pr_description.md
             fi
-          done
+          done < refme_output.log
             
           # Extract repo URL for the link
           REPO_URL=$(git config --get remote.origin.url | sed -E 's/.*github.com[:\/]([^\.]+).*/\1/')
