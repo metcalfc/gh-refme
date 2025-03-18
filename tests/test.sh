@@ -62,30 +62,30 @@ else
   exit 1
 fi
 
-# Test file subcommand
-echo "Testing file subcommand..."
-OUTPUT=$("${MAIN_SCRIPT}" file "$WORKFLOW_FILE" -n 2>&1 || true)
+# Test file processing with convert subcommand
+echo "Testing file processing with convert subcommand..."
+OUTPUT=$("${MAIN_SCRIPT}" convert "$WORKFLOW_FILE" -n 2>&1 || true)
 
 if [[ "$OUTPUT" =~ "Found 2 GitHub references" ]]; then
-  echo "✅ File subcommand test passed"
+  echo "✅ File processing test passed"
 else
-  echo "❌ File subcommand test failed"
+  echo "❌ File processing test failed"
   echo "Output was:"
   echo "$OUTPUT"
   exit 1
 fi
 
-# Test directory processing
-echo "Testing dir subcommand..."
+# Test directory processing with convert subcommand
+echo "Testing directory processing with convert subcommand..."
 mkdir -p "${TEST_DIR}/.github/workflows"
 cp "$WORKFLOW_FILE" "${TEST_DIR}/.github/workflows/"
 
-OUTPUT=$("${MAIN_SCRIPT}" dir "$TEST_DIR" -n 2>&1 || true)
+OUTPUT=$("${MAIN_SCRIPT}" convert "$TEST_DIR" -n 2>&1 || true)
 
 if [[ "$OUTPUT" =~ "Scanning for workflow files" ]]; then
-  echo "✅ Dir subcommand test passed"
+  echo "✅ Directory processing test passed"
 else
-  echo "❌ Dir subcommand test failed"
+  echo "❌ Directory processing test failed"
   echo "Output was:"
   echo "$OUTPUT"
   exit 1
@@ -96,7 +96,7 @@ echo "Testing help output..."
 OUTPUT=$("${MAIN_SCRIPT}" --help 2>&1 || true)
 
 # Check if the output contains the expected information
-if [[ "$OUTPUT" =~ "SUBCOMMANDS:" ]] && [[ "$OUTPUT" =~ "convert" ]] && [[ "$OUTPUT" =~ "file" ]] && [[ "$OUTPUT" =~ "dir" ]]; then
+if [[ "$OUTPUT" =~ "USAGE:" ]] && [[ "$OUTPUT" =~ "convert" ]] && [[ "$OUTPUT" =~ "DESCRIPTION:" ]]; then
   echo "✅ Help mode test passed"
 else
   echo "❌ Help mode test failed"
@@ -127,7 +127,7 @@ fi
 
 # Test workflow file processing (extension mode)
 echo "Testing workflow file processing (extension mode)..."
-OUTPUT=$("${MAIN_SCRIPT}" file "$WORKFLOW_FILE" -n 2>&1 || true)
+OUTPUT=$("${MAIN_SCRIPT}" convert "$WORKFLOW_FILE" -n 2>&1 || true)
 
 # Check if the output contains the expected information
 if [[ "$OUTPUT" =~ "Found 2 GitHub references" ]]; then
@@ -144,7 +144,7 @@ echo "Testing help output (extension mode)..."
 OUTPUT=$("${MAIN_SCRIPT}" --help 2>&1 || true)
 
 # Check if the output contains the expected information for extension mode
-if [[ "$OUTPUT" =~ "gh refme" ]] && [[ "$OUTPUT" =~ "SUBCOMMANDS:" ]]; then
+if [[ "$OUTPUT" =~ "gh refme" ]] && [[ "$OUTPUT" =~ "convert" ]]; then
   echo "✅ Help mode test passed (extension mode)"
 else
   echo "❌ Help mode test failed (extension mode)"
