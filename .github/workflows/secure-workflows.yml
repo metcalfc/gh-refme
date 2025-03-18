@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Needed to create PRs
+          token: ${{ secrets.WORKFLOW_TOKEN }}
           
       - name: Run gh-refme
         run: |
