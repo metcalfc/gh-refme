@@ -43,6 +43,26 @@ jobs:
         run: npm test
 EOF
 
+# Create test workflow with ignore comment
+cat > "$TEST_DIR/.github/workflows/ignore-test.yml" << 'EOF'
+name: Test Refme Ignore
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # refme: ignore
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+      - name: Run tests
+        run: npm test
+EOF
+
 # Create test workflow with mixed references
 cat > "$TEST_DIR/.github/workflows/mixed-refs.yml" << 'EOF'
 name: Test Mixed References
@@ -88,8 +108,22 @@ else
   exit 1
 fi
 
+# Test refme: ignore functionality
+info_msg "Testing refme: ignore functionality..."
+output=$("$REFME_SCRIPT" "$TEST_DIR/.github/workflows/ignore-test.yml" --dry-run 2>&1)
+
+# Check if the ignored reference was correctly skipped
+if echo "$output" | grep -q "Skipping actions/checkout@v4 (refme: ignore)"; then
+  print_result "refme: ignore feature" "pass"
+else
+  print_result "refme: ignore feature" "fail" "Failed to detect refme: ignore comment"
+  debug_msg "Output was:\n$output"
+  exit 1
+fi
+
 # Check if short hash is detected
 info_msg "Testing short hash reference..."
+output=$($REFME_SCRIPT convert "$TEST_DIR/.github/workflows/mixed-refs.yml" --dry-run 2>&1)
 if echo "$output" | grep -q "actions/setup-node@f7e10e0"; then
   print_result "Short hash reference detection" "pass"
 else
@@ -104,10 +138,10 @@ output=$("$REFME_SCRIPT" convert "$TEST_DIR/.github/workflows/*.yml" --dry-run 2
 
 # Count using unique file paths, not 'Processing' lines
 file_count=$(echo "$output" | grep -E "^Processing .*\.yml" | awk '{print $2}' | sort -u | wc -l | tr -d ' ')
-if [ "$file_count" -eq 2 ]; then
+if [ "$file_count" -eq 3 ]; then
   print_result "Wildcard file handling" "pass"
 else
-  print_result "Wildcard file handling" "fail" "Expected 2 files, got $file_count"
+  print_result "Wildcard file handling" "fail" "Expected 3 files, got $file_count"
   debug_msg "Output was:\n$output"
   exit 1
 fi

@@ -53,7 +53,8 @@ gh extension install metcalfc/gh-refme
 - **Branch Support**: Automatically resolves branches, tags, and short/full commit hashes
 - **Wildcard Support**: Process multiple workflow files with a single command
 - **Nested Package Detection**: Clear messaging for unsupported GitHub package formats
-- **DRY Principle**: Modular design with reusable functions for better maintainability
+- **Dry Run Mode**: Preview changes without modifying files
+- **Comment Preservation**: Adds helpful comments to track what tags/branches were converted to hashes
 
 ## Quick Start
 
@@ -213,8 +214,16 @@ The tool follows these security best practices:
 1. The tool parses GitHub Actions workflow files to find references in the format `owner/repo@ref`
 2. It queries the GitHub API to convert references to their corresponding commit hashes
 3. For workflow files, it uses pattern matching to locate and replace references
-4. Changes can be previewed before applying (dry run mode)
-5. Backups are created before modifying any files
+4. It adds helpful comments to track what tags/branches were converted to hashes
+   ```yaml
+   # Before:
+   - uses: actions/checkout@v4
+   
+   # After:
+   - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # was: actions/checkout@v4
+   ```
+5. Changes can be previewed before applying (dry run mode)
+6. Backups are created before modifying any files
 
 ### Special Features
 

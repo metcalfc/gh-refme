@@ -265,6 +265,11 @@ process_workflow_file() {
   temp_file="${TEMP_DIR}/$(basename "$file")"
   cp "$file" "$temp_file"
   
+  # Create another temporary file for reading content
+  local read_file
+  read_file="${TEMP_DIR}/read_$(basename "$file")"
+  cp "$file" "$read_file"
+  
   # Find all GitHub references in the file (lines with 'uses:')
   local line_num=0
   local ref_count=0
@@ -287,7 +292,7 @@ process_workflow_file() {
       
       # Check if previous line had "refme: ignore" comment
       if [[ -n "$prev_comment" && "$prev_comment" =~ refme:[[:space:]]*ignore ]]; then
-        echo "Line $line_num: Skipping $ref (refme: ignore)"
+        echo "Skipping $ref (refme: ignore)"
         unset prev_comment
         continue
       fi
@@ -314,9 +319,17 @@ process_workflow_file() {
         # Try to get commit hash
         local hash
         if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
-          # Replace in the temp file
+          # Replace in the temp file with a comment showing the original reference
           local old_pattern="uses: ${ref}"
-          local new_pattern="uses: ${owner}/${repo}@${hash}"
+          local new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref}"
+          
+          # Check if there's already a comment - use the original file
+          if grep -q "uses: ${ref} #" "$file"; then
+            # Preserve the existing comment
+            old_pattern="uses: ${ref} #"
+            new_pattern="uses: ${owner}/${repo}@${hash} #"
+          fi
+          
           sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
           
           echo "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
@@ -333,7 +346,7 @@ process_workflow_file() {
     # Clear previous comment
     unset prev_comment
     
-  done < "$file"
+  done < "$read_file"
   
   # Summary of changes
   if [[ $ref_count -eq 0 ]]; then
@@ -453,7 +466,7 @@ convert_reference() {
   # Get the hash
   local hash
   if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
-    echo "✓ $ref -> ${owner}/${repo}@${hash}"
+    echo "✓ $ref -> ${owner}/${repo}@${hash} # was: $ref"
     return 0
   else
     return 1
