@@ -37,10 +37,6 @@ jobs:
           curl -sL -o /usr/local/bin/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/refs/tags/v1.5.0/gh-refme
           chmod +x /usr/local/bin/gh-refme
           
-          # Create branch name with timestamp
-          BRANCH_NAME="gh-refme-secure-$(date +%Y%m%d%H%M%S)"
-          git checkout -b $BRANCH_NAME
-          
           # Run gh-refme on all workflow files
           echo "Running gh-refme on workflow files..."
           gh-refme .github/workflows/*.{yml,yaml}
@@ -51,6 +47,10 @@ jobs:
             exit 0
           fi
           
+          # Create branch name with timestamp
+          BRANCH_NAME="gh-refme-secure-$(date +%Y%m%d%H%M%S)"
+          git checkout -b $BRANCH_NAME
+
           # Commit and push changes
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
