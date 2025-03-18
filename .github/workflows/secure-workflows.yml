@@ -52,10 +52,12 @@ jobs:
           # Commit and push changes
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .github/workflows/*.yml .github/workflows/*.yaml
-          git commit -m "security: pin workflow actions to full commit hashes"
-          git push origin $BRANCH_NAME
+          git add .github/workflows/*.yml || true
+          git add .github/workflows/*.yaml || true
+          git commit -m "security: pin workflow actions to full commit hashes" || { echo "No changes to commit"; exit 0; }
+          git push origin $BRANCH_NAME || { echo "Failed to push changes"; exit 1; }
           
+          # Create a PR only if there were changes to push
           # Generate a report of all changes for the PR description
           echo "# GitHub Actions Security Update" > pr_description.md
           echo "\nThis PR updates GitHub Actions from tags/branches to full commit hashes for improved security.\n" >> pr_description.md
@@ -68,7 +70,7 @@ jobs:
           for file in $(git diff --name-only); do
             if [[ "$file" == *".github/workflows"* ]]; then
               # Find all the changes in this file
-              git diff -U0 "$file" | grep -E "^\+.*uses:.*# was:" | while read -r line; do
+              git diff -U0 "$file" | grep -E "^\+.*uses:.*@.*# was:" | while read -r line; do
                 # Extract components
                 WORKFLOW_FILE=$(basename "$file")
                 ORIGINAL_REF=$(echo "$line" | sed -E 's/.*# was: ([^ ]+).*/\1/')
