@@ -17,7 +17,7 @@ set -e
 GITHUB_API="https://api.github.com"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 # Detect if we're being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
@@ -303,13 +303,6 @@ get_commit_hash() {
     fi
   fi
   
-  # If still not found, use a dummy value for testing if in test mode
-  if [[ "$reference" == "main" || "$reference" == "master" || "$reference" =~ ^f7e10e0 ]]; then
-    # Return a dummy hash for testing
-    echo "1111111111111111111111111111111111111111"
-    return 0
-  fi
-  
   # If still not found, error out
   error "Could not find reference: ${reference} in ${owner}/${repo}"
 }
@@ -449,14 +442,7 @@ process_workflow_file() {
     echo "No GitHub references found in $file"
     return 0
   fi
-  
-  # For the test workflow file, enforce the expected reference count
-  if [[ "$file" =~ test-workflow.yml || "$file" =~ security-workflow.yml || "$file" =~ branch-test.yml ]]; then
-    ref_count=2
-  # Special case for mixed-refs.yml
-  elif [[ "$file" =~ mixed-refs.yml ]]; then
-    ref_count=3
-  fi
+
   echo "Found $ref_count GitHub references"
   
   local updated_count=0

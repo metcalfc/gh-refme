@@ -1,0 +1,12 @@
+.git/
+.github/
+.npmrc
+.npmignore
+node_modules/
+tests/
+examples/
+docs/
+Makefile
+*.log
+*.tgz
+dist/

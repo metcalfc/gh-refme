@@ -6,6 +6,34 @@ A lightweight tool to convert GitHub references (tags, branches) to their corres
 ![Bash](https://img.shields.io/badge/Language-Bash-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+## Installation
+
+### npm
+
+You can install gh-refme globally using npm:
+
+```bash
+npm install -g gh-refme
+
+# Optional: setup the Git pre-commit hook
+install-hook.sh
+```
+
+### Manual Download
+
+```bash
+# Download the script
+curl -o gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
+chmod +x gh-refme
+```
+
+### GitHub CLI Extension
+
+```bash
+# Install the extension
+gh extension install metcalfc/gh-refme
+```
+
 ## Features
 
 - **Dual Mode**: Use as a standalone script **or** a GitHub CLI extension
@@ -22,29 +50,22 @@ A lightweight tool to convert GitHub references (tags, branches) to their corres
 ### As a Standalone Script
 
 ```bash
-# Download the script
-curl -o gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
-chmod +x gh-refme
-
 # Convert a single reference
-./gh-refme convert actions/checkout@v4
+gh-refme convert actions/checkout@v4
 
 # Process a workflow file
-./gh-refme convert .github/workflows/my-workflow.yml
+gh-refme convert .github/workflows/my-workflow.yml
 
 # Process multiple workflow files with wildcards
-./gh-refme convert .github/workflows/*.yml
+gh-refme convert .github/workflows/*.yml
 
 # Process all workflows in a repository
-./gh-refme convert path/to/repo
+gh-refme convert path/to/repo
 ```
 
 ### As a GitHub CLI Extension
 
 ```bash
-# Install the extension
-gh extension install metcalfc/gh-refme
-
 # Convert a single reference
 gh refme convert actions/checkout@v4
 
@@ -134,10 +155,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Download gh-refme script
-        run: |
-          curl -o /tmp/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/main/gh-refme
-          chmod +x /tmp/gh-refme
+      - name: Install gh-refme
+        run: npm install -g gh-refme
       
       - name: Create branch for changes
         run: |
@@ -146,7 +165,7 @@ jobs:
           git checkout -b security/refme-$(date +%Y%m%d)
       
       - name: Process workflow files
-        run: /tmp/gh-refme convert .
+        run: gh-refme convert .
       
       - name: Create PR if changes found
         run: |

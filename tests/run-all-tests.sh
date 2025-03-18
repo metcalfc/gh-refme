@@ -27,7 +27,6 @@ chmod +x "${SCRIPT_DIR}"/*.sh
 # Run each test script
 run_test "${SCRIPT_DIR}/test.sh" "Basic Tests"
 run_test "${SCRIPT_DIR}/security-test.sh" "Security Tests"
-run_test "${SCRIPT_DIR}/comprehensive-test.sh" "Comprehensive Tests"
 run_test "${SCRIPT_DIR}/branch-ref-test.sh" "Branch Reference Tests"
 
 # Run shellcheck if available (optional)

@@ -1,0 +1,49 @@
+{
+  "name": "gh-refme",
+  "version": "1.2.1",
+  "description": "A tool to convert GitHub Actions references to commit hashes for improved security",
+  "bin": {
+    "gh-refme": "./gh-refme"
+  },
+  "main": "gh-refme",
+  "scripts": {
+    "test": "tests/run-all-tests.sh",
+    "postinstall": "node verify-install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metcalfc/gh-refme.git"
+  },
+  "keywords": [
+    "github",
+    "actions",
+    "security",
+    "reference",
+    "hash",
+    "gh",
+    "cli",
+    "extension"
+  ],
+  "dependencies": {},
+  "devDependencies": {},
+  "author": "Chad Metcalf",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/metcalfc/gh-refme/issues"
+  },
+  "homepage": "https://github.com/metcalfc/gh-refme#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "files": [
+    "gh-refme",
+    "verify-install.js",
+    "README.md",
+    "LICENSE",
+    "install-hook.sh"
+  ]
+}

@@ -4,7 +4,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -e
 
 # Configuration
-VERSION := 1.0.0
+VERSION := 1.2.1
 PREFIX := /usr/local
 EXTENSION_NAME := gh-refme
 
@@ -19,7 +19,7 @@ TEST_SCRIPTS := $(wildcard $(TEST_DIR)/*.sh)
 EXAMPLE_FILES := $(wildcard $(EXAMPLE_DIR)/*.sh $(EXAMPLE_DIR)/*.yml)
 
 # Targets
-.PHONY: all test clean install uninstall dist gh-extension check help
+.PHONY: all test clean install uninstall dist gh-extension check help npm-pack npm-publish
 
 # Default target
 all: help
@@ -75,6 +75,15 @@ dist:
 	@mkdir -p dist
 	@tar -czf dist/gh-refme-$(VERSION).tar.gz $(SCRIPT_NAME) gh-refme.json README.md $(DOCS_DIR) $(EXAMPLE_DIR) $(TEST_DIR) LICENSE
 
+# NPM targets
+npm-pack:
+	@echo "Creating npm package..."
+	@npm pack
+
+npm-publish:
+	@echo "Publishing to npm..."
+	@npm publish
+
 # Clean up generated files
 clean:
 	@echo "Cleaning up..."
@@ -82,6 +91,7 @@ clean:
 	@find . -name "*.bak" -delete
 	@find . -name "*.tmp" -delete
 	@find . -name "*.log" -delete
+	@rm -f *.tgz
 
 # Show help information
 help:
@@ -97,6 +107,8 @@ help:
 	@echo "  uninstall            : Remove script from $(PREFIX)/bin"
 	@echo "  gh-extension-install : Install as GitHub CLI extension locally"
 	@echo "  dist                 : Create distribution package"
+	@echo "  npm-pack             : Create npm package"
+	@echo "  npm-publish          : Publish to npm"
 	@echo "  clean                : Remove temporary files"
 	@echo "  help                 : Show this help information"
 	@echo ""
