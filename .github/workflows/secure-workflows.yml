@@ -104,4 +104,4 @@ jobs:
             --head $BRANCH_NAME
           fi
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ env.WORKFLOW_TOKEN }}
