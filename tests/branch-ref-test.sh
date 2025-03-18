@@ -4,27 +4,24 @@
 #
 set -e
 
-# Set colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
-
-echo -e "${YELLOW}Running tests for branch reference support...${NC}"
-
-# Find the location of the gh-refme script
+# Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common test utilities
+source "${SCRIPT_DIR}/test_utils.sh"
+
+# Initialize test counters
+init_test_counters
+
+print_header "Branch Reference Tests"
+
+# Get the path to the main script
 REFME_SCRIPT="${SCRIPT_DIR}/../gh-refme"
 
-if [ ! -f "$REFME_SCRIPT" ]; then
-  echo -e "${RED}Error: gh-refme script not found at $REFME_SCRIPT${NC}"
-  exit 1
-fi
+# Validate the script exists and is executable
+validate_refme_script "$REFME_SCRIPT" || exit 1
 
-# Make sure the script is executable
-chmod +x "$REFME_SCRIPT"
-
-echo -e "${YELLOW}Creating test workflow files...${NC}"
+info_msg "Creating test workflow files..."
 TEST_DIR=$(mktemp -d)
 mkdir -p "$TEST_DIR/.github/workflows"
 
@@ -66,53 +63,57 @@ jobs:
         run: npm test
 EOF
 
-echo -e "${YELLOW}Testing branch reference conversion...${NC}"
+info_msg "Testing branch reference conversion..."
 # Run in dry-run mode to not modify files
 output=$("$REFME_SCRIPT" convert "$TEST_DIR/.github/workflows/branch-test.yml" --dry-run 2>&1)
 
 # Check if branch references are detected
 if echo "$output" | grep -q "actions/checkout@main"; then
-  echo -e "${GREEN}✓ Branch reference detected${NC}"
+  print_result "Branch reference detection" "pass"
 else
-  echo -e "${RED}✗ Failed to detect branch reference${NC}"
-  echo "$output"
+  print_result "Branch reference detection" "fail" "Failed to detect branch reference"
+  debug_msg "Output was:\n$output"
   exit 1
 fi
 
 # Check if nested packages are handled correctly
+info_msg "Testing nested package detection..."
 output=$("$REFME_SCRIPT" convert "$TEST_DIR/.github/workflows/mixed-refs.yml" --dry-run 2>&1)
 
 if echo "$output" | grep -q "Nested GitHub package detected: github/codeql-action/init@v3"; then
-  echo -e "${GREEN}✓ Nested package detection works correctly${NC}"
+  print_result "Nested package detection" "pass"
 else
-  echo -e "${RED}✗ Failed to detect nested package${NC}"
-  echo "$output"
+  print_result "Nested package detection" "fail" "Failed to detect nested package format"
+  debug_msg "Output was:\n$output"
   exit 1
 fi
 
 # Check if short hash is detected
+info_msg "Testing short hash reference..."
 if echo "$output" | grep -q "actions/setup-node@f7e10e0"; then
-  echo -e "${GREEN}✓ Short hash reference detected${NC}"
+  print_result "Short hash reference detection" "pass"
 else
-  echo -e "${RED}✗ Failed to detect short hash reference${NC}"
-  echo "$output"
+  print_result "Short hash reference detection" "fail" "Failed to detect short hash format"
+  debug_msg "Output was:\n$output"
   exit 1
 fi
 
 # Test wildcard file handling
+info_msg "Testing wildcard file handling..."
 output=$("$REFME_SCRIPT" convert "$TEST_DIR/.github/workflows/*.yml" --dry-run 2>&1)
 
 # Count using unique file paths, not 'Processing' lines
 file_count=$(echo "$output" | grep -E "^Processing .*\.yml" | awk '{print $2}' | sort -u | wc -l | tr -d ' ')
 if [ "$file_count" -eq 2 ]; then
-  echo -e "${GREEN}✓ Wildcard file handling works correctly${NC}"
+  print_result "Wildcard file handling" "pass"
 else
-  echo -e "${RED}✗ Failed in wildcard file handling, expected 2 files, got $file_count${NC}"
-  echo "$output"
+  print_result "Wildcard file handling" "fail" "Expected 2 files, got $file_count"
+  debug_msg "Output was:\n$output"
   exit 1
 fi
 
 # Clean up
 rm -rf "$TEST_DIR"
 
-echo -e "${GREEN}All branch reference tests passed!${NC}"
+# Print test summary
+print_summary "Branch Reference"

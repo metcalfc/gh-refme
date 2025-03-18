@@ -9,40 +9,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The main script should be in the parent directory
 MAIN_SCRIPT="${SCRIPT_DIR}/../gh-refme"
 
-# Colors for better test output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source common test utilities
+source "${SCRIPT_DIR}/test_utils.sh"
 
-echo "Checking shell script best practices for gh-refme..."
+# Initialize test counters
+init_test_counters
+
+print_header "ShellCheck Analysis"
 
 # Check if shellcheck is available
 if ! command -v shellcheck &> /dev/null; then
-  echo -e "${YELLOW}WARNING: shellcheck not found. Skipping best practices check.${NC}"
-  echo "You can install shellcheck with:"
-  echo "  - On Ubuntu/Debian: sudo apt-get install shellcheck"
-  echo "  - On macOS with Homebrew: brew install shellcheck"
-  echo "  - On Windows with Chocolatey: choco install shellcheck"
+  warn_msg "shellcheck not found. Skipping best practices check."
+  info_msg "You can install shellcheck with:"
+  info_msg "  - On Ubuntu/Debian: sudo apt-get install shellcheck"
+  info_msg "  - On macOS with Homebrew: brew install shellcheck"
+  info_msg "  - On Windows with Chocolatey: choco install shellcheck"
   exit 0
 fi
 
-# Check if the script exists
-if [[ ! -f "${MAIN_SCRIPT}" ]]; then
-  echo -e "${RED}Error: gh-refme not found at ${MAIN_SCRIPT}${NC}"
-  exit 1
-fi
+# Validate the script exists and is executable
+validate_refme_script "${MAIN_SCRIPT}" || exit 1
 
-# Make sure the script is executable
-chmod +x "${MAIN_SCRIPT}"
-
-echo "Running shellcheck to identify potential issues..."
+info_msg "Running shellcheck to identify potential issues..."
 
 # Run shellcheck with common best practices
 RESULT=$(shellcheck -x "${MAIN_SCRIPT}" 2>&1 || true)
 
 if [[ -z "$RESULT" ]]; then
-  echo -e "${GREEN}✓ No issues found!${NC}"
+  print_result "ShellCheck Analysis" "pass" "No issues found!"
   exit 0
 else
   # Count the number of issues by severity
@@ -62,18 +56,18 @@ else
     ERROR_COUNT=$(echo "$RESULT" | grep -c "^In .* line .*: error:")
   fi
   
-  echo -e "${YELLOW}Found potential issues:${NC}"
-  echo -e "  ${GREEN}Info: $INFO_COUNT${NC}"
-  echo -e "  ${YELLOW}Warnings: $WARNING_COUNT${NC}"
-  echo -e "  ${RED}Errors: $ERROR_COUNT${NC}"
-  echo ""
+  info_msg "Found potential issues:"
+  info_msg "  Info: $INFO_COUNT"
+  info_msg "  Warnings: $WARNING_COUNT"
+  info_msg "  Errors: $ERROR_COUNT"
+  
   echo "$RESULT"
   
   if [[ "$ERROR_COUNT" -gt 0 ]]; then
-    echo -e "\n${RED}Errors detected. These should be fixed.${NC}"
+    print_result "ShellCheck Analysis" "fail" "Errors detected. These should be fixed."
     exit 1
   else
-    echo -e "\n${YELLOW}Only warnings and info messages found. The script is still usable, but could be improved.${NC}"
+    print_result "ShellCheck Analysis" "pass" "Only warnings and info messages found. The script is still usable."
     exit 0
   fi
 fi
