@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/*.yml'
       - '.github/workflows/*.yaml'
+    branches-ignore:
+      - 'gh-refme-secure-*'  # Skip PRs from the secure-workflows action
   
   # Also allow manual triggering
   workflow_dispatch:
@@ -13,6 +15,8 @@ on:
 jobs:
   security-check:
     runs-on: ubuntu-latest
+    # Skip this job if the branch name starts with gh-refme-secure-
+    if: "!startsWith(github.head_ref, 'gh-refme-secure-')"
     permissions:
       contents: write
       pull-requests: write
