@@ -28,9 +28,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Needed to create PRs
-      
-      - name: Setup GitHub CLI
-        uses: cli/setup-gh@v1
           
       - name: Run gh-refme
         run: |
@@ -101,3 +98,5 @@ jobs:
             --body-file pr_description.md \
             --base main \
             --head $BRANCH_NAME
+        env:
+          GH_TOKEN: ${{ github.token }}

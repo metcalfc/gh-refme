@@ -24,6 +24,8 @@ jobs:
           chmod +x /usr/local/bin/gh-refme
       
       - name: Validate workflow files
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Scanning workflow files for security issues..."
           
