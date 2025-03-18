@@ -1,0 +1,70 @@
+name: Security Scan with gh-refme
+
+on:
+  # Run this workflow on PRs that modify workflow files
+  pull_request:
+    paths:
+      - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
+  
+  # Also allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup
+        run: |
+          curl -sL -o /usr/local/bin/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/refs/tags/v1.5.0/gh-refme
+          chmod +x /usr/local/bin/gh-refme
+      
+      - name: Validate workflow files
+        run: |
+          echo "Scanning workflow files for security issues..."
+          
+          # Create output directory for scan results
+          mkdir -p scan-results
+          
+          # Get list of modified workflow files in PR
+          CHANGED_FILES=$(git diff --name-only origin/main... | grep -E '\.github/workflows/.*\.ya?ml$' || echo "")
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No workflow files changed in this PR. Running scan on all workflow files."
+            CHANGED_FILES=$(find .github/workflows -name "*.yml" -o -name "*.yaml")
+          fi
+          
+          # Check each file and collect results
+          ISSUES_FOUND=0
+          for file in $CHANGED_FILES; do
+            if [ -f "$file" ]; then
+              echo "Scanning $file..."
+              # Run in dry-run mode to check for references without changing files
+              gh-refme --dry-run "$file" > "scan-results/$(basename "$file").log" 2>&1
+              
+              # Check for branch or tag references
+              if grep -q "Updated " "scan-results/$(basename "$file").log"; then
+                echo "::warning file=$file::This workflow file contains actions referenced by tags or branches instead of commit hashes"
+                ISSUES_FOUND=1
+              fi
+            fi
+          done
+          
+          # Summarize findings
+          if [ $ISSUES_FOUND -eq 1 ]; then
+            echo "::error::Security issues found in workflow files! Please pin all actions to full commit hashes."
+            echo "Run 'gh-refme .github/workflows' to fix these issues."
+            exit 1
+          else
+            echo "All workflow files are using pinned commit hashes. Good job!"
+          fi
+        
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-results
+          path: scan-results/
