@@ -1,10 +1,19 @@
 # GitHub RefMe
 
-A lightweight tool to convert GitHub references (tags, branches) to their corresponding commit hashes. This enhances security by helping you convert GitHub Actions to specific commit hashes instead of potentially mutable tags or branches.
+A lightweight tool to convert GitHub references (tags, branches) to their corresponding commit hashes in workflow files. This enhances security by helping you convert GitHub Actions to specific commit hashes instead of potentially mutable tags or branches.
 
 ![Security](https://img.shields.io/badge/Security-Enhanced-blue)
 ![Bash](https://img.shields.io/badge/Language-Bash-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+
+```
+______        __ ___  ___      
+| ___ \      / _||  \/  |      
+| |_/ / ___ | |_ | .  . |  ___ 
+|    / / _ \|  _|| |\/| | / _ \
+| |\ \|  __/| |  | |  | ||  __/
+\_| \_|\___||_|  \_|  |_/ \___|
+```
 
 ## Installation
 
@@ -37,46 +46,35 @@ gh extension install metcalfc/gh-refme
 ## Features
 
 - **Dual Mode**: Use as a standalone script **or** a GitHub CLI extension
-- **Simple Interface**: Single command design for all operations
+- **Simple Interface**: File-focused design for all operations
 - **No Dependencies**: Uses only standard Unix tools and either `curl` or GitHub CLI (`gh`)
-- **Flexible**: Convert individual references, files, or entire repositories
+- **Security**: Properly validates all references and handles edge cases
 - **CI/CD Integration**: Easily add to your GitHub Actions workflows
 - **Branch Support**: Automatically resolves branches, tags, and short/full commit hashes
 - **Wildcard Support**: Process multiple workflow files with a single command
 - **Nested Package Detection**: Clear messaging for unsupported GitHub package formats
+- **DRY Principle**: Modular design with reusable functions for better maintainability
 
 ## Quick Start
 
 ### As a Standalone Script
 
 ```bash
-# Convert a single reference
-gh-refme convert actions/checkout@v4
-
 # Process a workflow file
-gh-refme convert .github/workflows/my-workflow.yml
+gh-refme .github/workflows/my-workflow.yml
 
 # Process multiple workflow files with wildcards
-gh-refme convert .github/workflows/*.yml
-
-# Process all workflows in a repository
-gh-refme convert path/to/repo
+gh-refme .github/workflows/*.yml
 ```
 
 ### As a GitHub CLI Extension
 
 ```bash
-# Convert a single reference
-gh refme convert actions/checkout@v4
-
 # Process a workflow file
-gh refme convert .github/workflows/my-workflow.yml
+gh refme .github/workflows/my-workflow.yml
 
 # Process multiple workflow files with wildcards
-gh refme convert .github/workflows/*.yml
-
-# Process all workflows in a repository
-gh refme convert path/to/repo
+gh refme .github/workflows/*.yml
 ```
 
 ## Why Convert GitHub Actions to Commit Hashes?
@@ -92,29 +90,17 @@ This tool makes it easy to follow this security best practice.
 ## Usage Examples
 
 ```bash
-# Convert single reference
-./gh-refme convert actions/checkout@v4
-gh refme convert actions/checkout@v4
-
-# Convert multiple references 
-./gh-refme convert actions/checkout@v4 actions/setup-node@v3
-gh refme convert actions/checkout@v4 actions/setup-node@v3
-
 # Process a specific workflow file
-./gh-refme convert path/to/workflow.yml
-gh refme convert path/to/workflow.yml
+./gh-refme .github/workflows/workflow.yml
+gh refme .github/workflows/workflow.yml
 
 # Process workflow files with wildcards
-./gh-refme convert path/to/*.yml
-gh refme convert path/to/*.yml
-
-# Process all workflows in a repository
-./gh-refme convert path/to/repo
-gh refme convert path/to/repo
+./gh-refme .github/workflows/*.yml
+gh refme .github/workflows/*.yml
 
 # Show what would be changed without making changes (dry run)
-./gh-refme convert path/to/workflow.yml -n
-gh refme convert path/to/workflow.yml -n
+./gh-refme -n .github/workflows/workflow.yml
+gh refme -n .github/workflows/workflow.yml
 ```
 
 ### Help & Information
@@ -165,7 +151,7 @@ jobs:
           git checkout -b security/refme-$(date +%Y%m%d)
       
       - name: Process workflow files
-        run: gh-refme convert .
+        run: gh-refme .github/workflows/*.yml
       
       - name: Create PR if changes found
         run: |
@@ -224,16 +210,21 @@ The tool follows these security best practices:
 
 ## How It Works
 
-1. The tool parses GitHub Actions references in the format `owner/repo@ref`
+1. The tool parses GitHub Actions workflow files to find references in the format `owner/repo@ref`
 2. It queries the GitHub API to convert references to their corresponding commit hashes
-   - First checks if the reference is a short hash and expands it
-   - Then checks if the reference is a tag
-   - If not found, tries as a branch
-   - Finally tries as a direct commit reference
-   - If all fail, reports an error
 3. For workflow files, it uses pattern matching to locate and replace references
 4. Changes can be previewed before applying (dry run mode)
 5. Backups are created before modifying any files
+
+### Special Features
+
+- **refme: ignore** - Add this comment before any action reference to skip its conversion:
+  ```yaml
+  # refme: ignore
+  - uses: actions/checkout@v4
+  ```
+
+- **Nested Action References** - The tool will detect and skip nested references like `github/codeql-action/init@v3` with an info message
 
 ## Advanced Usage
 

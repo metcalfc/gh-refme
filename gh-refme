@@ -2,84 +2,70 @@
 #
 # gh-refme - Convert GitHub references to commit hashes for better security
 #
-# This script can be used in two ways:
-# 1. As a standalone script: ./gh-refme convert [OPTIONS] ...
-# 2. As a GitHub CLI extension: gh refme convert [OPTIONS] ...
-#
-# Dependencies:
-#   - curl or gh CLI tool
-#   - jq (optional, for better JSON parsing)
-#   - standard Unix tools (sed, grep, awk)
+# This script processes GitHub Actions workflow YAML files and converts
+# git references (tags, branches, short commits) to full commit hashes.
 #
 set -e
 
-# Configuration
+# Configuration and global variables
+VERSION="1.2.1"
 GITHUB_API="https://api.github.com"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
-VERSION="1.2.1"
 
-# Detect if we're being run as a GitHub CLI extension
+# Detect if being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
-  RUNNING_AS_EXTENSION=true
   CMD_NAME="gh refme"
 else
-  RUNNING_AS_EXTENSION=false
   CMD_NAME="gh-refme"
 fi
 
 # Clean up temp directory on exit
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-# Helper: Print error message and exit
+# =============================================================================
+# ASCII Art Logo
+# =============================================================================
+print_logo() {
+  cat << 'EOF'
+______        __ ___  ___      
+| ___ \      / _||  \/  |      
+| |_/ / ___ | |_ | .  . |  ___ 
+|    / / _ \|  _|| |\/| | / _ \
+| |\ \|  __/| |  | |  | ||  __/
+\_| \_|\___||_|  \_|  |_/ \___|
+EOF
+}
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+# Print error message and exit
 error() {
   echo "ERROR: $1" >&2
   exit 1
 }
 
-# Helper: Check if string contains dangerous shell characters
-has_dangerous_chars() {
-  local string="$1"
-  # Check for specific dangerous shell characters
-  echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
+# Print info message
+info() {
+  echo "INFO: $1"
 }
 
-# Helper: Check if string contains path traversal patterns
-has_path_traversal() {
-  local path="$1"
-  # Check for common path traversal patterns
-  [[ "$path" == *..* || "$path" == *~* ]]
-}
-
-# Helper: Check if path has any security issues
-has_path_security_issues() {
-  local path="$1"
-  # Check for path traversal first
-  has_path_traversal "$path" || has_dangerous_chars "$path"
-}
-
-# Helper: Validate input string matches safe pattern
-is_safe_name() {
-  local string="$1"
-  [[ "$string" =~ ^[a-zA-Z0-9_.-]+$ ]]
-}
-
-# Helper: Print usage information
-usage() {
-  
+# Print usage information
+print_usage() {
+  print_logo
+  echo
   cat << EOF
 ${CMD_NAME} v${VERSION} - Convert GitHub references to commit hashes
 
 USAGE:
-  ${CMD_NAME} convert [OPTIONS] <target>
+  ${CMD_NAME} [OPTIONS] <file1.yml> [<file2.yml> ...]
+  ${CMD_NAME} convert [OPTIONS] <file1.yml> [<file2.yml> ...]
 
 DESCRIPTION:
-  Converts GitHub references to commit hashes for better security.
-  The target can be:
-  - A GitHub reference (e.g., actions/checkout@v4)
-  - A workflow file (e.g., .github/workflows/ci.yml)
-  - A pattern with wildcards (e.g., .github/workflows/*.yml)
-  - A directory containing a .github/workflows folder
+  Processes GitHub Actions workflow files and converts git references
+  (tags, branches, short commits) to full commit hashes.
 
 OPTIONS:
   -h, --help                  Show this help message
@@ -87,72 +73,45 @@ OPTIONS:
   -v, --version               Show version information
 
 EXAMPLES:
+  ${CMD_NAME} .github/workflows/ci.yml
+  ${CMD_NAME} --dry-run .github/workflows/*.yml
   ${CMD_NAME} convert actions/checkout@v4
-  ${CMD_NAME} convert actions/checkout@main
-  ${CMD_NAME} convert .github/workflows/ci.yml
-  ${CMD_NAME} convert .github/workflows/*.yml
-  ${CMD_NAME} convert ./my-repo
-
-NOTES:
-  For API authentication, the tool will use:
-  1. The GITHUB_TOKEN environment variable
-  2. An authenticated gh CLI session if available
 EOF
-
-  exit 0
 }
 
-# Helper: Check if command exists
-cmd_exists() {
+# Check if command exists
+command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# Helper: Get GitHub token
-get_github_token() {
-  # First try GitHub CLI if we're running as an extension or it's installed
-  if [[ "$RUNNING_AS_EXTENSION" == "true" ]] || cmd_exists gh && gh auth status >/dev/null 2>&1; then
-    gh auth token 2>/dev/null && return 0
-  fi
-  
-  # Then try environment variable
-  if [[ -n "${GITHUB_TOKEN}" ]]; then
-    echo "${GITHUB_TOKEN}"
-    return 0
-  fi
-  
-  # Return empty if no token available
-  echo ""
-  return 0
+# =============================================================================
+# Security Functions
+# =============================================================================
+
+# Check if string contains dangerous shell characters
+has_dangerous_chars() {
+  local string="$1"
+  echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
 }
 
-# Helper: Make authenticated GitHub API request
-github_api_request() {
-  local url="$1"
-  
-  # Strip leading slash if present, as gh api doesn't need it
-  url="${url#/}"
-  
-  # Use gh api command if available (handles auth automatically)
-  if cmd_exists gh; then
-    gh api "$url" 2>/dev/null && return 0
+# Check if string contains path traversal patterns
+# Used in the main function when validating file paths
+has_path_traversal() {
+  local path="$1"
+  if [[ "$path" == *..* || "$path" == *~* ]]; then
+    return 0  # Path contains traversal pattern
+  else
+    return 1  # Path is clean
   fi
-  
-  # Fallback to curl
-  local token
-  token=$(get_github_token)
-  
-  if cmd_exists curl; then
-    if [[ -n "$token" ]]; then
-      curl -s -H "Authorization: token ${token}" "${GITHUB_API}/${url}" && return 0
-    else
-      curl -s "${GITHUB_API}/${url}" && return 0
-    fi
-  fi
-  
-  error "Neither gh nor curl is available"
 }
 
-# Helper: Create a valid sed in-place edit command (compatible with BSD and GNU sed)
+# Validate input string matches safe pattern
+is_safe_name() {
+  local string="$1"
+  [[ "$string" =~ ^[a-zA-Z0-9_.-]+$ ]]
+}
+
+# Create a valid sed in-place edit command (compatible with BSD and GNU sed)
 sed_in_place() {
   local file="$1"
   local pattern="$2"
@@ -172,20 +131,62 @@ sed_in_place() {
   fi
 }
 
-# Get commit hash for a GitHub reference
-get_commit_hash() {
-  local ref="$1"
-  
-  # Parse owner/repo@ref format
-  if [[ ! "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-    error "Invalid reference format: $ref (expected owner/repo@ref)"
+# =============================================================================
+# GitHub API Functions
+# =============================================================================
+
+# Get GitHub token for authentication
+get_github_token() {
+  # First try GitHub CLI if installed
+  if command_exists gh && gh auth status >/dev/null 2>&1; then
+    gh auth token 2>/dev/null && return 0
   fi
   
-  local owner="${BASH_REMATCH[1]}"
-  local repo="${BASH_REMATCH[2]}"
-  local reference="${BASH_REMATCH[3]}"
+  # Then try environment variable
+  if [[ -n "${GITHUB_TOKEN}" ]]; then
+    echo "${GITHUB_TOKEN}"
+    return 0
+  fi
   
-  # Validate inputs to prevent injection
+  # Return empty if no token available
+  echo ""
+  return 0
+}
+
+# Make GitHub API request
+github_api_request() {
+  local url="$1"
+  
+  # Strip leading slash if present
+  url="${url#/}"
+  
+  # Use gh api command if available (handles auth automatically)
+  if command_exists gh; then
+    gh api "$url" 2>/dev/null && return 0
+  fi
+  
+  # Fallback to curl
+  local token
+  token=$(get_github_token)
+  
+  if command_exists curl; then
+    if [[ -n "$token" ]]; then
+      curl -s -H "Authorization: token ${token}" "${GITHUB_API}/${url}" && return 0
+    else
+      curl -s "${GITHUB_API}/${url}" && return 0
+    fi
+  fi
+  
+  error "Neither gh nor curl is available"
+}
+
+# Get commit hash for a GitHub reference
+get_commit_hash() {
+  local owner="$1"
+  local repo="$2"
+  local reference="$3"
+  
+  # Validate inputs 
   if ! is_safe_name "$owner"; then
     error "Invalid owner format: $owner (only alphanumeric, underscore, dot and dash allowed)"
   fi
@@ -194,7 +195,7 @@ get_commit_hash() {
     error "Invalid repository format: $repo (only alphanumeric, underscore, dot and dash allowed)"
   fi
   
-  # Check for potentially dangerous characters in reference
+  # Check for potentially dangerous characters
   if has_dangerous_chars "$reference"; then
     error "Invalid reference: $reference (contains potentially dangerous characters)"
   fi
@@ -210,83 +211,13 @@ get_commit_hash() {
     return 0
   fi
   
-  # Check if reference is a short hash (typically 7 characters)
-  if [[ "$reference" =~ ^[0-9a-f]{7,39}$ ]]; then
-    # Expand short hash to full hash by querying the commit directly
-    local commit_url="repos/${owner}/${repo}/commits/${reference}"
-    local commit_response
-    commit_response=$(github_api_request "$commit_url")
-    
-    if cmd_exists jq && [[ -n "$commit_response" ]]; then
-      local sha
-      sha=$(echo "$commit_response" | jq -r '.sha' 2>/dev/null)
-      if [[ "$sha" != "null" && -n "$sha" ]]; then
-        echo "$sha"
-        return 0
-      fi
-    else
-      # Simple grep fallback if jq not available
-      local sha
-      sha=$(echo "$commit_response" | grep -o '"sha":"[0-9a-f]\{40\}"' | head -1 | cut -d'"' -f4)
-      if [[ -n "$sha" ]]; then
-        echo "$sha"
-        return 0
-      fi
-    fi
-  fi
-  
-  # Try as a tag first
-  local tag_url="repos/${owner}/${repo}/git/refs/tags/${reference}"
-  local tag_response
-  tag_response=$(github_api_request "$tag_url")
-  
-  # If jq is available, use it for JSON parsing
-  if cmd_exists jq && [[ -n "$tag_response" ]]; then
-    local sha
-    sha=$(echo "$tag_response" | jq -r '.object.sha' 2>/dev/null)
-    if [[ "$sha" != "null" && -n "$sha" ]]; then
-      echo "$sha"
-      return 0
-    fi
-  else
-    # Simple grep fallback if jq not available
-    local sha
-    sha=$(echo "$tag_response" | grep -o '"sha":"[0-9a-f]\{40\}"' | head -1 | cut -d'"' -f4)
-    if [[ -n "$sha" ]]; then
-      echo "$sha"
-      return 0
-    fi
-  fi
-  
-  # If tag not found, try as a branch
-  local branch_url="repos/${owner}/${repo}/git/refs/heads/${reference}"
-  local branch_response
-  branch_response=$(github_api_request "$branch_url")
-  
-  # Parse using jq if available
-  if cmd_exists jq && [[ -n "$branch_response" ]]; then
-    local sha
-    sha=$(echo "$branch_response" | jq -r '.object.sha' 2>/dev/null)
-    if [[ "$sha" != "null" && -n "$sha" ]]; then
-      echo "$sha"
-      return 0
-    fi
-  else
-    # Simple grep fallback
-    local sha
-    sha=$(echo "$branch_response" | grep -o '"sha":"[0-9a-f]\{40\}"' | head -1 | cut -d'"' -f4)
-    if [[ -n "$sha" ]]; then
-      echo "$sha"
-      return 0
-    fi
-  fi
-  
-  # Try direct commit reference (this will work for branch names too)
+  # Try direct commit reference (this works for branches, tags, and short hashes)
   local commit_url="repos/${owner}/${repo}/commits/${reference}"
   local commit_response
   commit_response=$(github_api_request "$commit_url")
   
-  if cmd_exists jq && [[ -n "$commit_response" ]]; then
+  # Parse response with jq if available
+  if command_exists jq && [[ -n "$commit_response" ]]; then
     local sha
     sha=$(echo "$commit_response" | jq -r '.sha' 2>/dev/null)
     if [[ "$sha" != "null" && -n "$sha" ]]; then
@@ -307,203 +238,113 @@ get_commit_hash() {
   error "Could not find reference: ${reference} in ${owner}/${repo}"
 }
 
-# Convert a reference to hash and print result
-convert_reference() {
-  local ref="$1"
-  echo "Converting $ref..."
-  
-  # Validate basic format
-  if [[ ! "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-    echo "ERROR: Invalid reference format: $ref (expected owner/repo@ref)" >&2
-    return 1  # Return error code instead of exiting directly
-  fi
-  
-  local owner="${BASH_REMATCH[1]}"
-  local repo="${BASH_REMATCH[2]}"
-  local reference="${BASH_REMATCH[3]}"
-  
-  # Check for potentially dangerous characters in reference
-  if has_dangerous_chars "$reference"; then
-    echo "ERROR: Invalid reference: $reference (contains potentially dangerous characters)" >&2
-    return 1
-  fi
-  
-  # Validate inputs to prevent injection
-  if ! is_safe_name "$owner"; then
-    echo "ERROR: Invalid owner format: $owner (only alphanumeric, underscore, dot and dash allowed)" >&2
-    return 1
-  fi
-  
-  if ! is_safe_name "$repo"; then
-    echo "ERROR: Invalid repository format: $repo (only alphanumeric, underscore, dot and dash allowed)" >&2
-    return 1
-  fi
-  
-  # Check for excessively long inputs (prevent DoS)
-  if [[ ${#owner} -gt 50 || ${#repo} -gt 50 || ${#reference} -gt 100 ]]; then
-    echo "ERROR: Input too long. Owner and repo must be less than 50 characters, and reference less than 100 characters." >&2
-    return 1
-  fi
-  
-  # Skip if reference is already a full hash
-  if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "✓ Already a hash: $ref"
-    return 0
-  fi
-  
-  local hash
-  hash=$(get_commit_hash "$ref") || return 1
-  
-  echo "✓ $ref -> ${owner}/${repo}@${hash}"
-  return 0
-}
+# =============================================================================
+# File Processing Functions
+# =============================================================================
 
-# Process a workflow file to update GitHub references
+# Process a single workflow file
 process_workflow_file() {
   local file="$1"
   
+  # Check if file exists
   if [[ ! -f "$file" ]]; then
-    error "File not found: $file"
+    info "File not found: $file (skipping)"
+    return 0
   fi
   
-  # Security check: prevent path traversal
-  # First, reject any paths with security issues
-  if has_path_security_issues "$file"; then
-    error "Invalid file path: $file (path traversal attempt detected)"
-  fi
-  
-  local abs_file
-  if [[ "$file" = /* ]]; then
-    # Handle absolute paths
-    abs_file="$file"
-  else
-    # Handle relative paths
-    abs_file="$(pwd)/$file"
-  fi
-  
-  # Normalize path to prevent path traversal
-  local normalized_path
-  normalized_path="$(cd "$(dirname "$abs_file")" 2>/dev/null && pwd -P)/$(basename "$abs_file")" || {
-    error "Invalid file path: $file (directory doesn't exist)"
-  }
-  
-  # Check for path traversal attempts
-  if ! [[ "$normalized_path" =~ ^(/[A-Za-z0-9._-]+)+$ ]]; then
-    error "Invalid file path: $file (path traversal attempt detected)"
+  # Check file extension
+  if [[ ! "$file" =~ \.(yml|yaml)$ ]]; then
+    info "Not a YAML file: $file (skipping)"
+    return 0
   fi
   
   echo "Processing $file..."
   
-  # Create a temporary copy
-  local file_basename
-  file_basename="$(basename "$file")"
-  local temp_file="${TEMP_DIR}/${file_basename}"
+  # Create a temporary copy for processing
+  local temp_file
+  temp_file="${TEMP_DIR}/$(basename "$file")"
   cp "$file" "$temp_file"
   
-  # Find all GitHub references in the workflow file
-  local refs
-  local all_refs
-  # Using a safer grep approach to extract references
-  # Capture the lines first, then process them to extract the references
-  all_refs=$(grep -o 'uses: [^[:space:]]*' "$file" 2>/dev/null | sed 's/uses: //' || echo "")
-  refs=""
+  # Find all GitHub references in the file (lines with 'uses:')
+  local line_num=0
   local ref_count=0
+  local updated_count=0
+  local prev_comment=""
   
-  # Pre-validate references to catch potentially malicious ones
-  while IFS= read -r ref; do
-    if [[ -z "$ref" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_num=$((line_num + 1))
+    
+    # Check if line is a comment
+    if [[ "$line" =~ ^[[:space:]]*# ]]; then
+      # Store the comment for checking "refme: ignore" in the next line
+      prev_comment="$line"
       continue
     fi
     
-    # Check for potentially harmful characters before processing
-    if has_dangerous_chars "$ref" || [[ "$ref" == *" "* ]]; then
-      echo "⚠️ Invalid reference in file: $ref (contains potentially dangerous characters, skipping)" >&2
-      continue
-    fi
-    
-    # Check for GitHub package with nested structure (e.g., github/codeql-action/init@v3)
-    if [[ "$ref" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$ ]]; then
-      echo "⚠️ Nested GitHub package detected: $ref (format not supported for conversion)" >&2
-      continue
-    fi
-    
-    # Only count valid references in the format owner/repo@ref
-    if [[ "$ref" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$ ]]; then
+    # Check if line contains a GitHub Action reference
+    if [[ "$line" =~ uses:[[:space:]]*([^[:space:]]+) ]]; then
+      local ref="${BASH_REMATCH[1]}"
+      
+      # Check if previous line had "refme: ignore" comment
+      if [[ -n "$prev_comment" && "$prev_comment" =~ refme:[[:space:]]*ignore ]]; then
+        echo "Line $line_num: Skipping $ref (refme: ignore)"
+        unset prev_comment
+        continue
+      fi
+      
+      # Increment reference counter for any reference format
       ref_count=$((ref_count + 1))
-      # Collect valid references
-      refs+="$ref
-"
-    else
-      echo "⚠️ Invalid reference format in file: $ref (skipping)" >&2
+      
+      # Check for nested package references first (e.g., github/codeql-action/init@v3)
+      if [[ "$ref" =~ ^([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+)$ ]]; then
+        echo "Nested GitHub package detected: $ref (format not supported for conversion)"
+        continue
+      # Validate and parse the standard reference format
+      elif [[ "$ref" =~ ^([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+)$ ]]; then
+        local owner="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        local reference="${BASH_REMATCH[3]}"
+        
+        # Check if already a hash (for validation purposes)
+        if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "Line $line_num: Already pinned to hash: $ref"
+          continue
+        fi
+        
+        # Try to get commit hash
+        local hash
+        if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
+          # Replace in the temp file
+          local old_pattern="uses: ${ref}"
+          local new_pattern="uses: ${owner}/${repo}@${hash}"
+          sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
+          
+          echo "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
+          updated_count=$((updated_count + 1))
+        else
+          echo "Line $line_num: Failed to get hash for $ref (skipping)"
+        fi
+      else
+        # Invalid reference format
+        echo "Line $line_num: Invalid reference format: $ref (skipping)"
+      fi
     fi
-  done <<< "$all_refs"
+    
+    # Clear previous comment
+    unset prev_comment
+    
+  done < "$file"
   
-  if [[ -z "$refs" ]]; then
+  # Summary of changes
+  if [[ $ref_count -eq 0 ]]; then
     echo "No GitHub references found in $file"
     return 0
   fi
-
-  echo "Found $ref_count GitHub references"
   
-  local updated_count=0
+  echo "Found $ref_count GitHub references, updated $updated_count"
   
-  # Process each reference
-  while IFS= read -r ref; do
-    if [[ -z "$ref" ]]; then
-      continue
-    fi
-    
-    # Skip if already a hash
-    if [[ "$ref" =~ ^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+@[0-9a-f]{40}$ ]]; then
-      echo "✓ Already pinned: $ref"
-      continue
-    fi
-    
-    echo "Processing reference: $ref"
-    
-    # Security: Check for potentially dangerous characters
-    if has_dangerous_chars "$ref"; then
-      echo "⚠️ Invalid reference: $ref (contains potentially dangerous characters, skipping)" >&2
-      continue
-    fi
-    
-    # Additional validation for owner and repo format
-    if [[ "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-      local owner="${BASH_REMATCH[1]}"
-      local repo="${BASH_REMATCH[2]}"
-      
-      if ! is_safe_name "$owner" || ! is_safe_name "$repo"; then
-        echo "⚠️ Invalid owner or repo format in: $ref (contains potentially dangerous characters, skipping)" >&2
-        continue
-      fi
-    fi
-    
-    # Get the hash
-    local hash
-    if hash=$(get_commit_hash "$ref" 2>/dev/null); then
-      # Parse the reference
-      if [[ "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-        local owner="${BASH_REMATCH[1]}"
-        local repo="${BASH_REMATCH[2]}"
-        
-        # Replace in the temp file - use sed_in_place for compatibility
-        # Escape special characters that might interfere with sed
-      local old_pattern="uses: ${ref}"
-      local new_pattern="uses: ${owner}/${repo}@${hash}"
-      sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
-        
-        echo "✓ Updated: $ref -> ${owner}/${repo}@${hash}"
-        updated_count=$((updated_count + 1))
-      fi
-    else
-      echo "⚠️ Failed to get hash for $ref (skipping)" >&2
-    fi
-  done <<< "$refs"
-  
-  # Only write the file if changes were made and not in dry run mode
+  # Apply changes or show diff
   if [[ $updated_count -gt 0 ]]; then
-    echo "Updated $updated_count references"
-    
     if [[ "$DRY_RUN" == "true" ]]; then
       echo "Dry run: Not writing changes to $file"
       echo "Diff:"
@@ -519,7 +360,7 @@ process_workflow_file() {
   fi
 }
 
-# Process all workflow files in a directory
+# Process a directory to find workflow files
 process_directory() {
   local dir="$1"
   
@@ -531,7 +372,7 @@ process_directory() {
   local workflow_dir="${dir}/.github/workflows"
   
   if [[ ! -d "$workflow_dir" ]]; then
-    error "No GitHub .github/workflows directory found in $dir. Please specify the root of your repository or directly specify workflow files."
+    error "No GitHub .github/workflows directory found in $dir"
   fi
   
   echo "Scanning for workflow files in ${workflow_dir}..."
@@ -560,36 +401,89 @@ process_directory() {
   echo "All workflow files processed"
 }
 
-# Main program - handles both standalone and GitHub CLI extension modes
-main() {
-  # Set default exit code
-  local exit_code=0
-  local targets=()  
+# Convert a direct GitHub reference (for backward compatibility)
+convert_reference() {
+  local ref="$1"
+  echo "Converting $ref..."
   
-  # Check for 'convert' command
-if [[ "$1" != "convert" ]]; then
-  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    usage
-  elif [[ "$1" == "-v" || "$1" == "--version" ]]; then
-    echo "${CMD_NAME} v${VERSION}"
-    exit 0
-  else
-    error "Unknown command. Only 'convert' is supported. Run '${CMD_NAME} --help' for usage."
+  # Check for excessively long input
+  if [[ ${#ref} -gt 150 ]]; then
+    echo "ERROR: Reference too long: ${#ref} characters (maximum is 150)" >&2
+    return 1
   fi
-fi
   
-  # Remove the 'convert' command from arguments
-  shift
+  # Validate basic format
+  if [[ ! "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
+    echo "ERROR: Invalid reference format: $ref (expected owner/repo@ref)" >&2
+    return 1
+  fi
   
-  # Process options
+  local owner="${BASH_REMATCH[1]}"
+  local repo="${BASH_REMATCH[2]}"
+  local reference="${BASH_REMATCH[3]}"
+  
+  # Security checks
+  if has_dangerous_chars "$reference"; then
+    echo "ERROR: Invalid reference: $reference (contains potentially dangerous characters)" >&2
+    return 1
+  fi
+  
+  if ! is_safe_name "$owner"; then
+    echo "ERROR: Invalid owner format: $owner (only alphanumeric, underscore, dot and dash allowed)" >&2
+    return 1
+  fi
+  
+  if ! is_safe_name "$repo"; then
+    echo "ERROR: Invalid repository format: $repo (only alphanumeric, underscore, dot and dash allowed)" >&2
+    return 1
+  fi
+  
+  # Check for excessively long inputs (prevent DoS)
+  if [[ ${#owner} -gt 50 || ${#repo} -gt 50 || ${#reference} -gt 100 ]]; then
+    echo "ERROR: Input too long. Owner and repo must be less than 50 characters, and reference less than 100 characters." >&2
+    return 1
+  fi
+  
+  # Skip if reference is already a full hash
+  if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "✓ Already a hash: $ref"
+    return 0
+  fi
+  
+  # Get the hash
+  local hash
+  if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
+    echo "✓ $ref -> ${owner}/${repo}@${hash}"
+    return 0
+  else
+    return 1
+  fi
+}
+
+# =============================================================================
+# Main Function
+# =============================================================================
+
+main() {
+  local files=()
+  local is_convert_command=false
+  
+  # Check if the first argument is "convert" (for backward compatibility)
+  if [[ $# -gt 0 && "$1" == "convert" ]]; then
+    is_convert_command=true
+    shift
+  fi
+  
+  # Process command line options
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
       -n|--dry-run)
         DRY_RUN=true
         shift
-        ;;
-      -h|--help)
-        usage
         ;;
       -v|--version)
         echo "${CMD_NAME} v${VERSION}"
@@ -599,140 +493,62 @@ fi
         error "Unknown option: $1"
         ;;
       *)
-        targets+=("$1")
+        files+=("$1")
         shift
         ;;
     esac
   done
   
   # Check for required tools
-  if ! cmd_exists curl && ! cmd_exists gh; then
+  if ! command_exists curl && ! command_exists gh; then
     error "Either curl or gh CLI is required"
   fi
   
   # Check for required arguments
-  if [[ ${#targets[@]} -eq 0 ]]; then
-    error "No targets specified. Run '${CMD_NAME} --help' for usage."
+  if [[ ${#files[@]} -eq 0 ]]; then
+    print_usage
+    exit 1
   fi
   
-  # Process each target
-  for target in "${targets[@]}"; do
-    # Check if the target has a wildcard in it (e.g., *.yml)
-    if [[ "$target" == *\** ]]; then
-      # Handle wildcards by expanding the pattern
-      for file in $target; do
+  # Process each file or reference
+  for file in "${files[@]}"; do
+    # Special handling for direct references when using 'convert' command (backward compatibility)
+    if [[ "$is_convert_command" == "true" && "$file" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$ ]]; then
+      convert_reference "$file"
+      continue
+    fi
+    
+    # Process directories
+    if [[ -d "$file" ]]; then
+      process_directory "$file"
+      continue
+    fi
+    
+    # Check for path traversal attempts in file path
+    if has_path_traversal "$file"; then
+      echo "ERROR: Path traversal attempt detected in: $file" >&2
+      continue
+    fi
+    
+    # Handle wildcards by expanding the pattern
+    if [[ "$file" == *\** ]]; then
+      for matched_file in $file; do
         # Skip if the pattern didn't match any files
-        if [[ ! -f "$file" ]]; then
+        if [[ ! -f "$matched_file" ]]; then
           continue
         fi
         
-        # Validate file path before processing
-        if has_dangerous_chars "$file" || [[ "$file" == *" "* ]]; then
-          echo "Error: Invalid file path: $file (contains potentially dangerous characters)" >&2
-          exit_code=1
-          continue
-        fi
-        
-        # Check if it's a YAML file
-        if [[ "$file" =~ \.(yml|yaml)$ ]]; then
-          # Process the workflow file
-          process_workflow_file "$file" || {
-            echo "Error processing file: $file" >&2
-            exit_code=1
-          }
-        else
-          echo "Warning: Skipping non-YAML file: $file" >&2
-        fi
+        process_workflow_file "$matched_file"
       done
       continue
     fi
     
-    # Check if target is a directory
-    if [[ -d "$target" ]]; then
-      # Validate directory path
-      if has_dangerous_chars "$target" || [[ "$target" == *" "* ]]; then
-        echo "Error: Invalid directory path: $target (contains potentially dangerous characters)" >&2
-        exit_code=1
-        continue
-      fi
-      
-      # Check path length to prevent DoS
-      if [[ ${#target} -gt 255 ]]; then
-        echo "Error: Directory path too long: ${#target} characters (maximum is 255)" >&2
-        exit_code=1
-        continue
-      fi
-      
-      # Process the directory
-      process_directory "$target" || {
-        echo "Error processing directory: $target" >&2
-        exit_code=1
-      }
-      continue
-    fi
-    
-    # Check if target is a file
-    if [[ -f "$target" ]]; then
-      # Validate file path
-      if has_dangerous_chars "$target" || [[ "$target" == *" "* ]]; then
-        echo "Error: Invalid file path: $target (contains potentially dangerous characters)" >&2
-        exit_code=1
-        continue
-      fi
-      
-      # Check path length to prevent DoS
-      if [[ ${#target} -gt 255 ]]; then
-        echo "Error: File path too long: ${#target} characters (maximum is 255)" >&2
-        exit_code=1
-        continue
-      fi
-      
-      # Check if it's a YAML file
-      if [[ "$target" =~ \.(yml|yaml)$ ]]; then
-        # Process the workflow file
-        process_workflow_file "$target" || {
-          echo "Error processing file: $target" >&2
-          exit_code=1
-        }
-      else
-        echo "Warning: File doesn't have YAML extension: $target" >&2
-        # Still try to process it if the user explicitly specified it
-        process_workflow_file "$target" || {
-          echo "Error processing file: $target" >&2
-          exit_code=1
-        }
-      fi
-      continue
-    fi
-    
-    # Check if target has explicit path traversal patterns
-    if has_path_traversal "$target"; then
-      echo "ERROR: Path traversal attempt detected in: $target" >&2
-      exit_code=1
-      continue
-    fi
-    
-    # Assume it's a GitHub reference
-    if has_dangerous_chars "$target" || [[ "$target" == *" "* ]]; then
-      echo "Error: Invalid reference: $target (contains potentially dangerous characters)" >&2
-      exit_code=1
-      continue
-    fi
-    
-    # Check reference length
-    if [[ ${#target} -gt 150 ]]; then
-      echo "Error: Reference too long: ${#target} characters (maximum is 150)" >&2
-      exit_code=1
-      continue
-    fi
-    
-    # Process valid reference
-    if ! convert_reference "$target"; then
-      exit_code=1
-    fi
+    # Regular file processing
+    process_workflow_file "$file"
   done
   
-  exit $exit_code
+  echo "All files processed"
+  exit 0
 }
 
 # Call the main function
