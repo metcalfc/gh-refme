@@ -8,7 +8,7 @@
 set -e
 
 # Configuration and global variables
-VERSION="1.2.1"
+VERSION="1.5.0"
 GITHUB_API="https://api.github.com"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
