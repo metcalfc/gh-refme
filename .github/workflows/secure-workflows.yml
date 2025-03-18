@@ -105,4 +105,4 @@ jobs:
             --head $BRANCH_NAME
           fi
         env:
-          GH_TOKEN: ${{ env.WORKFLOW_TOKEN }}
+          GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
