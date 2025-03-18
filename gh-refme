@@ -312,13 +312,7 @@ process_workflow_file() {
         local owner="${BASH_REMATCH[1]}"
         local repo="${BASH_REMATCH[2]}"
         local reference="${BASH_REMATCH[3]}"
-        
-        # Check if already a hash (for validation purposes)
-        #if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
-        #  echo "Line $line_num: Already pinned to hash: $ref"
-        #  continue
-        #fi
-        
+
         # Try to get commit hash
         local hash
         if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
@@ -464,13 +458,7 @@ convert_reference() {
     echo "ERROR: Input too long. Owner and repo must be less than 50 characters, and reference less than 100 characters." >&2
     return 1
   fi
-  
-  # Skip if reference is already a full hash
-  #if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
-  #  echo "✓ Already a hash: $ref"
-  #  return 0
-  #fi
-  
+    
   # Get the hash
   local hash
   if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
