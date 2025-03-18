@@ -12,6 +12,7 @@ VERSION="1.2.1"
 GITHUB_API="https://api.github.com"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
+CREATE_BACKUP=false
 
 # Detect if being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
@@ -70,11 +71,13 @@ DESCRIPTION:
 OPTIONS:
   -h, --help                  Show this help message
   -n, --dry-run               Show what would be changed without making changes
+  -b, --backup                Create backup files (.bak) before making changes
   -v, --version               Show version information
 
 EXAMPLES:
   ${CMD_NAME} .github/workflows/ci.yml
   ${CMD_NAME} --dry-run .github/workflows/*.yml
+  ${CMD_NAME} --backup .github/workflows/*.yml
   ${CMD_NAME} convert actions/checkout@v4
 EOF
 }
@@ -311,10 +314,10 @@ process_workflow_file() {
         local reference="${BASH_REMATCH[3]}"
         
         # Check if already a hash (for validation purposes)
-        if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
-          echo "Line $line_num: Already pinned to hash: $ref"
-          continue
-        fi
+        #if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
+        #  echo "Line $line_num: Already pinned to hash: $ref"
+        #  continue
+        #fi
         
         # Try to get commit hash
         local hash
@@ -363,10 +366,15 @@ process_workflow_file() {
       echo "Diff:"
       diff -u "$file" "$temp_file" || true
     else
-      # Create a backup
-      cp "$file" "${file}.bak"
+      # Create a backup only if requested
+      if [[ "$CREATE_BACKUP" == "true" ]]; then
+        cp "$file" "${file}.bak"
+        echo "Changes written to $file (backup at ${file}.bak)"
+      else
+        echo "Changes written to $file"
+      fi
+      # Copy the new content
       cp "$temp_file" "$file"
-      echo "Changes written to $file (backup at ${file}.bak)"
     fi
   else
     echo "No changes made to $file"
@@ -458,10 +466,10 @@ convert_reference() {
   fi
   
   # Skip if reference is already a full hash
-  if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "✓ Already a hash: $ref"
-    return 0
-  fi
+  #if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
+  #  echo "✓ Already a hash: $ref"
+  #  return 0
+  #fi
   
   # Get the hash
   local hash
@@ -496,6 +504,10 @@ main() {
         ;;
       -n|--dry-run)
         DRY_RUN=true
+        shift
+        ;;
+      -b|--backup)
+        CREATE_BACKUP=true
         shift
         ;;
       -v|--version)
