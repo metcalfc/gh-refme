@@ -37,9 +37,9 @@ jobs:
           curl -sL -o /usr/local/bin/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/refs/tags/v1.5.0/gh-refme
           chmod +x /usr/local/bin/gh-refme
           
-          # Run gh-refme on all workflow files
+          # Run gh-refme and capture all output for reference
           echo "Running gh-refme on workflow files..."
-          gh-refme .github/workflows/*.{yml,yaml}
+          gh-refme .github/workflows/*.{yml,yaml} 2>&1 | tee refme_output.log
           
           # Check if any changes were made
           if git diff --quiet; then
@@ -59,57 +59,50 @@ jobs:
           git commit -m "security: pin workflow actions to full commit hashes" || { echo "No changes to commit"; exit 0; }
           git push origin $BRANCH_NAME || { echo "Failed to push changes"; exit 1; }
           
-          # Need to check if there are any changes to report
-          # Skip this part if no changes were committed
-          if git show --name-only | grep -q ".github/workflows"; then
-            echo "# GitHub Actions Security Update" > pr_description.md
-            echo "" >> pr_description.md
-            echo "This PR updates GitHub Actions from tags/branches to full commit hashes for improved security." >> pr_description.md
-            echo "" >> pr_description.md
-            echo "## Changes Made" >> pr_description.md
-            echo "" >> pr_description.md
-            
-            # Extract all changes and create a table with links
-            echo "| File | Original Reference | Pinned Commit | Validation Links |" >> pr_description.md
-            echo "|------|-------------------|--------------|-----------------|" >> pr_description.md
-            
-            for file in $(git diff --name-only); do
-              if [[ "$file" == *".github/workflows"* ]]; then
-                # Find all the changes in this file
-                git diff -U0 "$file" | grep -E "^\+.*uses:.*@[a-f0-9]+.*# was:" | while read -r line; do
-                  # Extract components
-                  WORKFLOW_FILE=$(basename "$file")
-                  ORIGINAL_REF=$(echo "$line" | sed -E 's/.*# was: ([^ ]+).*/\1/' || echo "unknown")
-                  PINNED_HASH=$(echo "$line" | sed -E 's/.*uses: ([^#]+) #.*/\1/' || echo "unknown")
-                  
-                  # Parse into owner/repo@ref format
-                  if [[ "$ORIGINAL_REF" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-                    OWNER="${BASH_REMATCH[1]}"
-                    REPO="${BASH_REMATCH[2]}"
-                    REF="${BASH_REMATCH[3]}"
-                    
-                    # Create validation links
-                    ORIGINAL_LINK="https://github.com/$OWNER/$REPO/tree/$REF"
-                    COMMIT_LINK="https://github.com/$OWNER/$REPO/commit/$(echo $PINNED_HASH | cut -d'@' -f2)"
-                    
-                    # Add row to the table
-                    echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH | [Original]($ORIGINAL_LINK) • [Commit]($COMMIT_LINK) |" >> pr_description.md
-                  fi
-                done
+          # Create PR description directly from the changes
+          echo "# GitHub Actions Security Update" > pr_description.md
+          echo "" >> pr_description.md
+          echo "This PR updates GitHub Actions from tags/branches to full commit hashes for improved security." >> pr_description.md
+          echo "" >> pr_description.md
+          echo "## Changes Made" >> pr_description.md
+          echo "" >> pr_description.md
+          
+          # Add table headers
+          echo "| File | Original Reference | Pinned Commit |" >> pr_description.md
+          echo "|------|-------------------|---------------|" >> pr_description.md
+          
+          # Extract changes from the log file
+          grep "Updated " refme_output.log | while read -r line; do
+            if [[ "$line" =~ Line[[:space:]]+[0-9]+:[[:space:]]+Updated[[:space:]]+([^[:space:]]+)[[:space:]]+\-\>[[:space:]]+([^[:space:]]+) ]]; then
+              ORIGINAL_REF="${BASH_REMATCH[1]}"
+              PINNED_HASH="${BASH_REMATCH[2]}"
+              
+              # Extract file name from the line before
+              FILE=$(grep -B 1 "$line" refme_output.log | head -1 | grep -o "Processing .*\.\.\." | sed 's/Processing \(.*\)\.\.\./\1/')
+              if [ -z "$FILE" ]; then
+                FILE="Unknown file"
               fi
-            done
+              WORKFLOW_FILE=$(basename "$FILE")
+              
+              # Add row to the table
+              echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH |" >> pr_description.md
+            fi
+          done
             
-            # Extract repo URL for the link
-            REPO_URL=$(git config --get remote.origin.url | sed -E 's/.*github.com[:\/]([^\.]+).*/\1/')
+          # Extract repo URL for the link
+          REPO_URL=$(git config --get remote.origin.url | sed -E 's/.*github.com[:\/]([^\.]+).*/\1/')
             
-            echo "" >> pr_description.md
-            echo "Generated automatically by [gh-refme](https://github.com/$REPO_URL). Reviews should verify that the pinned commits match the intended references." >> pr_description.md
+          echo "" >> pr_description.md
+          echo "Generated automatically by [gh-refme](https://github.com/$REPO_URL). Reviews should verify that the pinned commits match the intended references." >> pr_description.md
+          
+          # Display the actual changes that will be made
+          echo "Changes to be included in PR:"
+          git diff --stat HEAD~1
             
-            # Create PR with the detailed description
-            gh pr create --title "Security: Pin GitHub Actions to full commit hashes" \
-              --body-file pr_description.md \
-              --base main \
-              --head $BRANCH_NAME
-          fi
+          # Create PR with the detailed description
+          gh pr create --title "Security: Pin GitHub Actions to full commit hashes" \
+            --body-file pr_description.md \
+            --base main \
+            --head $BRANCH_NAME
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
