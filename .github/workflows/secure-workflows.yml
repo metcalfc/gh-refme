@@ -62,47 +62,54 @@ jobs:
           # Need to check if there are any changes to report
           # Skip this part if no changes were committed
           if git show --name-only | grep -q ".github/workflows"; then
-          echo "# GitHub Actions Security Update" > pr_description.md
-          echo "\nThis PR updates GitHub Actions from tags/branches to full commit hashes for improved security.\n" >> pr_description.md
-          echo "## Changes Made\n" >> pr_description.md
-          
-          # Extract all changes and create a table with links
-          echo "| File | Original Reference | Pinned Commit | Validation Links |" >> pr_description.md
-          echo "|------|-------------------|--------------|-----------------|" >> pr_description.md
-          
-          for file in $(git diff --name-only); do
-            if [[ "$file" == *".github/workflows"* ]]; then
-              # Find all the changes in this file
-              git diff -U0 "$file" | grep -E "^\+.*uses:.*@[a-f0-9]+.*# was:" | while read -r line; do
-                # Extract components
-                WORKFLOW_FILE=$(basename "$file")
-                ORIGINAL_REF=$(echo "$line" | sed -E 's/.*# was: ([^ ]+).*/\1/' || echo "unknown")
-                PINNED_HASH=$(echo "$line" | sed -E 's/.*uses: ([^#]+) #.*/\1/' || echo "unknown")
-                
-                # Parse into owner/repo@ref format
-                if [[ "$ORIGINAL_REF" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
-                  OWNER="${BASH_REMATCH[1]}"
-                  REPO="${BASH_REMATCH[2]}"
-                  REF="${BASH_REMATCH[3]}"
+            echo "# GitHub Actions Security Update" > pr_description.md
+            echo "" >> pr_description.md
+            echo "This PR updates GitHub Actions from tags/branches to full commit hashes for improved security." >> pr_description.md
+            echo "" >> pr_description.md
+            echo "## Changes Made" >> pr_description.md
+            echo "" >> pr_description.md
+            
+            # Extract all changes and create a table with links
+            echo "| File | Original Reference | Pinned Commit | Validation Links |" >> pr_description.md
+            echo "|------|-------------------|--------------|-----------------|" >> pr_description.md
+            
+            for file in $(git diff --name-only); do
+              if [[ "$file" == *".github/workflows"* ]]; then
+                # Find all the changes in this file
+                git diff -U0 "$file" | grep -E "^\+.*uses:.*@[a-f0-9]+.*# was:" | while read -r line; do
+                  # Extract components
+                  WORKFLOW_FILE=$(basename "$file")
+                  ORIGINAL_REF=$(echo "$line" | sed -E 's/.*# was: ([^ ]+).*/\1/' || echo "unknown")
+                  PINNED_HASH=$(echo "$line" | sed -E 's/.*uses: ([^#]+) #.*/\1/' || echo "unknown")
                   
-                  # Create validation links
-                  ORIGINAL_LINK="https://github.com/$OWNER/$REPO/tree/$REF"
-                  COMMIT_LINK="https://github.com/$OWNER/$REPO/commit/$(echo $PINNED_HASH | cut -d'@' -f2)"
-                  
-                  # Add row to the table
-                  echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH | [Original]($ORIGINAL_LINK) • [Commit]($COMMIT_LINK) |" >> pr_description.md
-                fi
-              done
-            fi
-          done
-          
-          echo "\nGenerated automatically by [gh-refme](https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:\/]\(.*\)\.git/\1/')). Reviews should verify that the pinned commits match the intended references." >> pr_description.md
-          
-          # Create PR with the detailed description
-          gh pr create --title "Security: Pin GitHub Actions to full commit hashes" \
-            --body-file pr_description.md \
-            --base main \
-            --head $BRANCH_NAME
+                  # Parse into owner/repo@ref format
+                  if [[ "$ORIGINAL_REF" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
+                    OWNER="${BASH_REMATCH[1]}"
+                    REPO="${BASH_REMATCH[2]}"
+                    REF="${BASH_REMATCH[3]}"
+                    
+                    # Create validation links
+                    ORIGINAL_LINK="https://github.com/$OWNER/$REPO/tree/$REF"
+                    COMMIT_LINK="https://github.com/$OWNER/$REPO/commit/$(echo $PINNED_HASH | cut -d'@' -f2)"
+                    
+                    # Add row to the table
+                    echo "| $WORKFLOW_FILE | $ORIGINAL_REF | $PINNED_HASH | [Original]($ORIGINAL_LINK) • [Commit]($COMMIT_LINK) |" >> pr_description.md
+                  fi
+                done
+              fi
+            done
+            
+            # Extract repo URL for the link
+            REPO_URL=$(git config --get remote.origin.url | sed -E 's/.*github.com[:\/]([^\.]+).*/\1/')
+            
+            echo "" >> pr_description.md
+            echo "Generated automatically by [gh-refme](https://github.com/$REPO_URL). Reviews should verify that the pinned commits match the intended references." >> pr_description.md
+            
+            # Create PR with the detailed description
+            gh pr create --title "Security: Pin GitHub Actions to full commit hashes" \
+              --body-file pr_description.md \
+              --base main \
+              --head $BRANCH_NAME
           fi
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
