@@ -41,7 +41,7 @@ jobs:
           
           # Run gh-refme on all workflow files
           echo "Running gh-refme on workflow files..."
-          gh-refme .github/workflows
+          gh-refme .github/workflows/*.{yml,yaml}
           
           # Check if any changes were made
           if git diff --quiet; then
