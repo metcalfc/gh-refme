@@ -11,6 +11,9 @@ readonly MAX_OWNER_REPO_LENGTH=50       # Maximum length for owner and repo name
 readonly MAX_REFERENCE_LENGTH=100       # Maximum length for git references
 readonly MAX_TOTAL_REF_LENGTH=150       # Maximum length for complete reference strings
 
+# GitHub API configuration
+readonly GITHUB_API="https://api.github.com"
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -150,6 +153,276 @@ parse_github_ref() {
 is_valid_cli_ref() {
   local ref="$1"
   [[ "$ref" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$ ]]
+}
+
+# =============================================================================
+# GitHub API Functions
+# =============================================================================
+
+# Get GitHub token for authentication
+get_github_token() {
+  # First try GitHub CLI if installed
+  if command_exists gh && gh auth status >/dev/null 2>&1; then
+    gh auth token 2>/dev/null && return 0
+  fi
+  
+  # Then try environment variable
+  if [[ -n "${GITHUB_TOKEN}" ]]; then
+    echo "${GITHUB_TOKEN}"
+    return 0
+  fi
+  
+  # Return empty if no token available
+  echo ""
+  return 0
+}
+
+# Make GitHub API request
+github_api_request() {
+  local url="$1"
+  
+  # Strip leading slash if present
+  url="${url#/}"
+  
+  # Use gh api command if available (handles auth automatically)
+  if command_exists gh; then
+    gh api "$url" 2>/dev/null && return 0
+  fi
+  
+  # Fallback to curl
+  local token
+  token=$(get_github_token)
+  
+  if command_exists curl; then
+    if [[ -n "$token" ]]; then
+      curl -s -H "Authorization: token ${token}" "${GITHUB_API}/${url}" && return 0
+    else
+      curl -s "${GITHUB_API}/${url}" && return 0
+    fi
+  fi
+  
+  error "Neither gh nor curl is available"
+}
+
+# Get commit hash for a GitHub reference
+get_commit_hash() {
+  local owner="$1"
+  local repo="$2"
+  local reference="$3"
+  
+  # Validate inputs using shared validation function
+  validate_github_ref "$owner" "$repo" "$reference" "FATAL"
+  
+  # Check if reference is already a full hash (40 character hex)
+  if [[ "$reference" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "$reference"
+    return 0
+  fi
+  
+  # Try direct commit reference (this works for branches, tags, and short hashes)
+  local commit_url="repos/${owner}/${repo}/commits/${reference}"
+  local commit_response
+  commit_response=$(github_api_request "$commit_url")
+  
+  # Parse response with jq if available
+  if command_exists jq && [[ -n "$commit_response" ]]; then
+    local sha
+    sha=$(echo "$commit_response" | jq -r '.sha' 2>/dev/null)
+    if [[ "$sha" != "null" && -n "$sha" ]]; then
+      echo "$sha"
+      return 0
+    fi
+  else
+    # Simple grep fallback if jq not available
+    local sha
+    sha=$(echo "$commit_response" | grep -o '"sha":"[0-9a-f]\{40\}"' | head -1 | cut -d'"' -f4)
+    if [[ -n "$sha" ]]; then
+      echo "$sha"
+      return 0
+    fi
+  fi
+  
+  # If still not found, error out
+  error "Could not find reference: ${reference} in ${owner}/${repo}"
+}
+
+# =============================================================================
+# File Processing Functions
+# =============================================================================
+
+# Validate that a file exists and is a YAML workflow file
+validate_workflow_file() {
+  local file="$1"
+  
+  # Check if file exists
+  if [[ ! -f "$file" ]]; then
+    echo "File not found: $file (skipping)"
+    return 1
+  fi
+  
+  # Check file extension
+  if [[ ! "$file" =~ \.(yml|yaml)$ ]]; then
+    echo "Not a YAML file: $file (skipping)"
+    return 1
+  fi
+  
+  return 0
+}
+
+# Setup temporary files for processing a workflow file
+setup_temp_files() {
+  local file="$1"
+  local temp_dir="$2"
+  
+  # Create a temporary copy for processing
+  local temp_file="${temp_dir}/$(basename "$file")"
+  cp "$file" "$temp_file"
+  
+  # Create another temporary file for reading content
+  local read_file="${temp_dir}/read_$(basename "$file")"
+  cp "$file" "$read_file"
+  
+  # Export file paths for use by calling function
+  TEMP_PROCESSING_FILE="$temp_file"
+  TEMP_READ_FILE="$read_file"
+}
+
+# Process GitHub references in a workflow file
+process_github_references() {
+  local read_file="$1"
+  local temp_file="$2"
+  local original_file="$3"
+  
+  local line_num=0
+  local ref_count=0
+  local updated_count=0
+  local prev_comment=""
+  
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_num=$((line_num + 1))
+    
+    # Check if line is a comment
+    if [[ "$line" =~ ^[[:space:]]*# ]]; then
+      # Store the comment for checking "refme: ignore" in the next line
+      prev_comment="$line"
+      continue
+    fi
+    
+    # Check if line contains a GitHub Action reference
+    if [[ "$line" =~ uses:[[:space:]]*([^[:space:]]+) ]]; then
+      local ref="${BASH_REMATCH[1]}"
+      
+      # Check if previous line had "refme: ignore" comment
+      if [[ -n "$prev_comment" && "$prev_comment" =~ refme:[[:space:]]*ignore ]]; then
+        echo "Skipping $ref (refme: ignore)"
+        unset prev_comment
+        continue
+      fi
+      
+      # Increment reference counter for any reference format
+      ref_count=$((ref_count + 1))
+      
+      # Process the reference
+      if process_single_reference "$ref" "$temp_file" "$original_file" "$line_num"; then
+        updated_count=$((updated_count + 1))
+      fi
+    fi
+    
+    # Clear previous comment
+    unset prev_comment
+    
+  done < "$read_file"
+  
+  # Export results for calling function
+  PROCESSED_REF_COUNT=$ref_count
+  PROCESSED_UPDATE_COUNT=$updated_count
+}
+
+# Process a single GitHub reference
+process_single_reference() {
+  local ref="$1"
+  local temp_file="$2"
+  local original_file="$3"
+  local line_num="$4"
+  
+  # Parse the GitHub reference using shared parsing function
+  local parse_result
+  parse_result=$(parse_github_ref "$ref"; echo $?)
+  
+  if [[ $parse_result -eq 1 ]]; then
+    echo "Nested GitHub package detected: $ref (format not supported for conversion)"
+    return 1
+  elif [[ $parse_result -eq 0 ]]; then
+    local owner="$PARSED_OWNER"
+    local repo="$PARSED_REPO"
+    local reference="$PARSED_REFERENCE"
+
+    # Try to get commit hash
+    local hash
+    if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
+      # Replace in the temp file with a comment showing the original reference
+      local old_pattern="uses: ${ref}"
+      local new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref}"
+      
+      # Check if there's already a comment - use the original file
+      if grep -q "uses: ${ref} #" "$original_file"; then
+        # Preserve the existing comment
+        old_pattern="uses: ${ref} #"
+        new_pattern="uses: ${owner}/${repo}@${hash} #"
+      fi
+      
+      sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
+      
+      echo "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
+      return 0
+    else
+      echo "Line $line_num: Failed to get hash for $ref (skipping)"
+      return 1
+    fi
+  else
+    # Invalid reference format
+    echo "Line $line_num: Invalid reference format: $ref (skipping)"
+    return 1
+  fi
+}
+
+# Apply changes or show diff for processed file
+apply_or_show_changes() {
+  local original_file="$1"
+  local temp_file="$2"
+  local ref_count="$3"
+  local updated_count="$4"
+  local dry_run="$5"
+  local create_backup="$6"
+  
+  # Summary of changes
+  if [[ $ref_count -eq 0 ]]; then
+    echo "No GitHub references found in $original_file"
+    return 0
+  fi
+  
+  echo "Found $ref_count GitHub references, updated $updated_count"
+  
+  # Apply changes or show diff
+  if [[ $updated_count -gt 0 ]]; then
+    if [[ "$dry_run" == "true" ]]; then
+      echo "Dry run: Not writing changes to $original_file"
+      echo "Diff:"
+      diff -u "$original_file" "$temp_file" || true
+    else
+      # Create a backup only if requested
+      if [[ "$create_backup" == "true" ]]; then
+        cp "$original_file" "${original_file}.bak"
+        echo "Changes written to $original_file (backup at ${original_file}.bak)"
+      else
+        echo "Changes written to $original_file"
+      fi
+      # Copy the new content
+      cp "$temp_file" "$original_file"
+    fi
+  else
+    echo "No changes made to $original_file"
+  fi
 }
 
 # =============================================================================
