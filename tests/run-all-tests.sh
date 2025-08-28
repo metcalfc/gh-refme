@@ -28,6 +28,7 @@ chmod +x "${SCRIPT_DIR}"/*.sh
 run_test "${SCRIPT_DIR}/test.sh" "Basic Tests"
 run_test "${SCRIPT_DIR}/security-test.sh" "Security Tests"
 run_test "${SCRIPT_DIR}/branch-ref-test.sh" "Branch Reference Tests"
+run_test "${SCRIPT_DIR}/constants-test.sh" "Constants Tests"
 
 # Run shellcheck if available (optional)
 if command -v shellcheck &> /dev/null; then

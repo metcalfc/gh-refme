@@ -8,11 +8,16 @@
 set -e
 
 # Configuration and global variables
-VERSION="1.5.0"
+VERSION="1.5.1"
 GITHUB_API="https://api.github.com"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
 CREATE_BACKUP=false
+
+# Security and validation constants
+readonly MAX_OWNER_REPO_LENGTH=50       # Maximum length for owner and repo names
+readonly MAX_REFERENCE_LENGTH=100       # Maximum length for git references
+readonly MAX_TOTAL_REF_LENGTH=150       # Maximum length for complete reference strings
 
 # Detect if being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
@@ -204,8 +209,8 @@ get_commit_hash() {
   fi
   
   # Check for excessively long inputs (prevent DoS)
-  if [[ ${#owner} -gt 50 || ${#repo} -gt 50 || ${#reference} -gt 100 ]]; then
-    error "Input too long. Owner and repo must be less than 50 characters, and reference less than 100 characters."
+  if [[ ${#owner} -gt $MAX_OWNER_REPO_LENGTH || ${#repo} -gt $MAX_OWNER_REPO_LENGTH || ${#reference} -gt $MAX_REFERENCE_LENGTH ]]; then
+    error "Input too long. Owner and repo must be less than $MAX_OWNER_REPO_LENGTH characters, and reference less than $MAX_REFERENCE_LENGTH characters."
   fi
   
   # Check if reference is already a full hash (40 character hex)
@@ -422,8 +427,8 @@ convert_reference() {
   echo "Converting $ref..."
   
   # Check for excessively long input
-  if [[ ${#ref} -gt 150 ]]; then
-    echo "ERROR: Reference too long: ${#ref} characters (maximum is 150)" >&2
+  if [[ ${#ref} -gt $MAX_TOTAL_REF_LENGTH ]]; then
+    echo "ERROR: Reference too long: ${#ref} characters (maximum is $MAX_TOTAL_REF_LENGTH)" >&2
     return 1
   fi
   
@@ -454,8 +459,8 @@ convert_reference() {
   fi
   
   # Check for excessively long inputs (prevent DoS)
-  if [[ ${#owner} -gt 50 || ${#repo} -gt 50 || ${#reference} -gt 100 ]]; then
-    echo "ERROR: Input too long. Owner and repo must be less than 50 characters, and reference less than 100 characters." >&2
+  if [[ ${#owner} -gt $MAX_OWNER_REPO_LENGTH || ${#repo} -gt $MAX_OWNER_REPO_LENGTH || ${#reference} -gt $MAX_REFERENCE_LENGTH ]]; then
+    echo "ERROR: Input too long. Owner and repo must be less than $MAX_OWNER_REPO_LENGTH characters, and reference less than $MAX_REFERENCE_LENGTH characters." >&2
     return 1
   fi
     
