@@ -28,10 +28,86 @@ error() {
 # Security Functions
 # =============================================================================
 
+# Sanitize environment variables to prevent injection
+sanitize_environment() {
+  # Clear potentially dangerous environment variables
+  unset IFS
+  # Ensure PATH doesn't contain current directory
+  export PATH="${PATH//.:/:}"
+  export PATH="${PATH#:}"
+  export PATH="${PATH%:}"
+  
+  # Set secure umask for file creation
+  umask 0077
+}
+
+# Create a secure temporary file with proper permissions
+create_secure_temp_file() {
+  local prefix="$1"
+  local temp_file
+  temp_file=$(mktemp "${TEMP_DIR}/${prefix}.XXXXXX")
+  chmod 600 "$temp_file"
+  echo "$temp_file"
+}
+
+# Validate file path security before processing
+validate_file_path_security() {
+  local file_path="$1"
+  
+  # Check for null bytes using tr to count them
+  if [[ $(printf '%s' "$file_path" | tr -d '\0' | wc -c) -ne ${#file_path} ]]; then
+    echo "ERROR: File path contains null bytes" >&2
+    return 1
+  fi
+  
+  # Check for excessively long paths
+  if [[ ${#file_path} -gt 4096 ]]; then
+    echo "ERROR: File path too long (>${#file_path} characters)" >&2
+    return 1
+  fi
+  
+  # Ensure we're not operating on special files (only if file exists)
+  if [[ -e "$file_path" ]] && [[ -c "$file_path" || -b "$file_path" || -p "$file_path" ]]; then
+    echo "ERROR: Cannot process special files (character/block/pipe)" >&2
+    return 1
+  fi
+  
+  return 0
+}
+
+# =============================================================================
+# Security Functions (Existing)
+# =============================================================================
+
 # Check if string contains dangerous shell characters
 has_dangerous_chars() {
   local string="$1"
   echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
+}
+
+# Enhanced security validation for references
+validate_reference_security() {
+  local ref="$1"
+  
+  # Check for URL injection attempts
+  if [[ "$ref" =~ https?:// ]] || [[ "$ref" =~ ftp:// ]] || [[ "$ref" =~ file:// ]]; then
+    echo "ERROR: Reference contains URL schemes (potential injection)" >&2
+    return 1
+  fi
+  
+  # Check for control characters that could cause issues
+  if [[ "$ref" =~ [[:cntrl:]] ]]; then
+    echo "ERROR: Reference contains control characters" >&2
+    return 1
+  fi
+  
+  # Check for Unicode bidirectional override characters (security concern)
+  if echo "$ref" | grep -q $'\u202e\|\u202d\|\u202a\|\u202b\|\u202c'; then
+    echo "ERROR: Reference contains bidirectional text override characters" >&2
+    return 1
+  fi
+  
+  return 0
 }
 
 # Check if string contains path traversal patterns
@@ -280,12 +356,18 @@ setup_temp_files() {
   local file="$1"
   local temp_dir="$2"
   
-  # Create a temporary copy for processing
-  local temp_file="${temp_dir}/$(basename "$file")"
+  # Validate file path security
+  if ! validate_file_path_security "$file"; then
+    return 1
+  fi
+  
+  # Create secure temporary files
+  local temp_file
+  temp_file=$(create_secure_temp_file "process_$(basename "$file" .yml)")
   cp "$file" "$temp_file"
   
-  # Create another temporary file for reading content
-  local read_file="${temp_dir}/read_$(basename "$file")"
+  local read_file
+  read_file=$(create_secure_temp_file "read_$(basename "$file" .yml)")
   cp "$file" "$read_file"
   
   # Export file paths for use by calling function
@@ -351,6 +433,12 @@ process_single_reference() {
   local original_file="$3"
   local line_num="$4"
   
+  # Enhanced security validation first
+  if ! validate_reference_security "$ref"; then
+    echo "Line $line_num: Security validation failed for $ref (skipping)"
+    return 1
+  fi
+  
   # Parse the GitHub reference using shared parsing function
   local parse_result
   parse_result=$(parse_github_ref "$ref"; echo $?)
@@ -392,6 +480,31 @@ process_single_reference() {
   fi
 }
 
+# Securely copy file contents while preserving permissions
+secure_copy_file() {
+  local source_file="$1"
+  local dest_file="$2"
+  
+  # Validate both file paths
+  if ! validate_file_path_security "$source_file" || ! validate_file_path_security "$dest_file"; then
+    return 1
+  fi
+  
+  # Get original file permissions
+  local orig_perms
+  orig_perms=$(stat -c '%a' "$dest_file" 2>/dev/null || echo "644")
+  
+  # Copy content securely
+  if cp "$source_file" "$dest_file"; then
+    # Restore original permissions
+    chmod "$orig_perms" "$dest_file"
+    return 0
+  else
+    echo "ERROR: Failed to copy file securely" >&2
+    return 1
+  fi
+}
+
 # Apply changes or show diff for processed file
 apply_or_show_changes() {
   local original_file="$1"
@@ -418,13 +531,19 @@ apply_or_show_changes() {
     else
       # Create a backup only if requested
       if [[ "$create_backup" == "true" ]]; then
-        cp "$original_file" "${original_file}.bak"
+        if ! secure_copy_file "$original_file" "${original_file}.bak"; then
+          echo "ERROR: Failed to create secure backup" >&2
+          return 1
+        fi
         echo "Changes written to $original_file (backup at ${original_file}.bak)"
       else
         echo "Changes written to $original_file"
       fi
-      # Copy the new content
-      cp "$temp_file" "$original_file"
+      # Copy the new content securely
+      if ! secure_copy_file "$temp_file" "$original_file"; then
+        echo "ERROR: Failed to apply changes securely" >&2
+        return 1
+      fi
     fi
   else
     echo "No changes made to $original_file"

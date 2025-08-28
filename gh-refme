@@ -22,6 +22,9 @@ else
   exit 1
 fi
 
+# Initialize security environment
+sanitize_environment
+
 # Detect if being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
   CMD_NAME="gh refme"
