@@ -186,7 +186,11 @@ github_api_request() {
   
   # Use gh api command if available (handles auth automatically)
   if command_exists gh; then
-    gh api "$url" 2>/dev/null && return 0
+    local response
+    if response=$(gh api "$url" 2>/dev/null); then
+      echo "$response"
+      return 0
+    fi
   fi
   
   # Fallback to curl
@@ -195,9 +199,11 @@ github_api_request() {
   
   if command_exists curl; then
     if [[ -n "$token" ]]; then
-      curl -s -H "Authorization: token ${token}" "${GITHUB_API}/${url}" && return 0
+      curl -s -H "Authorization: token ${token}" "${GITHUB_API}/${url}"
+      return $?
     else
-      curl -s "${GITHUB_API}/${url}" && return 0
+      curl -s "${GITHUB_API}/${url}"
+      return $?
     fi
   fi
   

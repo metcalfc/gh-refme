@@ -30,6 +30,7 @@ run_test "${SCRIPT_DIR}/security-test.sh" "Security Tests"
 run_test "${SCRIPT_DIR}/branch-ref-test.sh" "Branch Reference Tests"
 run_test "${SCRIPT_DIR}/constants-test.sh" "Constants Tests"
 run_test "${SCRIPT_DIR}/validation-test.sh" "Input Validation Tests"
+run_test "${SCRIPT_DIR}/error-scenarios-test.sh" "Error Scenario Tests"
 
 # Run shellcheck if available (optional)
 if command -v shellcheck &> /dev/null; then
