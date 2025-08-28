@@ -14,10 +14,14 @@ TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
 CREATE_BACKUP=false
 
-# Security and validation constants
-readonly MAX_OWNER_REPO_LENGTH=50       # Maximum length for owner and repo names
-readonly MAX_REFERENCE_LENGTH=100       # Maximum length for git references
-readonly MAX_TOTAL_REF_LENGTH=150       # Maximum length for complete reference strings
+# Load shared library functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/lib/gh-refme-lib.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/gh-refme-lib.sh"
+else
+  echo "ERROR: Cannot find required library file: ${SCRIPT_DIR}/lib/gh-refme-lib.sh" >&2
+  exit 1
+fi
 
 # Detect if being run as a GitHub CLI extension
 if [[ -n "$GH_CLI_VERSION" ]]; then
@@ -41,16 +45,6 @@ ______        __ ___  ___
 | |\ \|  __/| |  | |  | ||  __/
 \_| \_|\___||_|  \_|  |_/ \___|
 EOF
-}
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-# Print error message and exit
-error() {
-  echo "ERROR: $1" >&2
-  exit 1
 }
 
 # Print info message
@@ -87,107 +81,6 @@ EXAMPLES:
 EOF
 }
 
-# Check if command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-# =============================================================================
-# Security Functions
-# =============================================================================
-
-# Check if string contains dangerous shell characters
-has_dangerous_chars() {
-  local string="$1"
-  echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
-}
-
-# Check if string contains path traversal patterns
-# Used in the main function when validating file paths
-has_path_traversal() {
-  local path="$1"
-  if [[ "$path" == *..* || "$path" == *~* ]]; then
-    return 0  # Path contains traversal pattern
-  else
-    return 1  # Path is clean
-  fi
-}
-
-# Validate input string matches safe pattern
-is_safe_name() {
-  local string="$1"
-  [[ "$string" =~ ^[a-zA-Z0-9_.-]+$ ]]
-}
-
-# Create a valid sed in-place edit command (compatible with BSD and GNU sed)
-sed_in_place() {
-  local file="$1"
-  local pattern="$2"
-  local replacement="$3"
-  
-  # Remove any trailing newlines from pattern and replacement
-  pattern=$(echo -n "$pattern" | tr -d '\n')
-  replacement=$(echo -n "$replacement" | tr -d '\n')
-  
-  # Check if we're using BSD or GNU sed
-  if sed --version 2>/dev/null | grep -q "GNU"; then
-    # GNU sed
-    sed -i "s|$pattern|$replacement|g" "$file"
-  else
-    # BSD sed (macOS)
-    sed -i '' "s|$pattern|$replacement|g" "$file"
-  fi
-}
-
-# Validate GitHub reference components (owner, repo, reference)
-validate_github_ref() {
-  local owner="$1"
-  local repo="$2"
-  local reference="$3"
-  local error_prefix="${4:-ERROR}" # Default to "ERROR", can be customized
-  
-  # Validate owner format
-  if ! is_safe_name "$owner"; then
-    if [[ "$error_prefix" == "ERROR" ]]; then
-      echo "ERROR: Invalid owner format: $owner (only alphanumeric, underscore, dot and dash allowed)" >&2
-      return 1
-    else
-      error "Invalid owner format: $owner (only alphanumeric, underscore, dot and dash allowed)"
-    fi
-  fi
-  
-  # Validate repository format
-  if ! is_safe_name "$repo"; then
-    if [[ "$error_prefix" == "ERROR" ]]; then
-      echo "ERROR: Invalid repository format: $repo (only alphanumeric, underscore, dot and dash allowed)" >&2
-      return 1
-    else
-      error "Invalid repository format: $repo (only alphanumeric, underscore, dot and dash allowed)"
-    fi
-  fi
-  
-  # Check for potentially dangerous characters in reference
-  if has_dangerous_chars "$reference"; then
-    if [[ "$error_prefix" == "ERROR" ]]; then
-      echo "ERROR: Invalid reference: $reference (contains potentially dangerous characters)" >&2
-      return 1
-    else
-      error "Invalid reference: $reference (contains potentially dangerous characters)"
-    fi
-  fi
-  
-  # Check for excessively long inputs (prevent DoS)
-  if [[ ${#owner} -gt $MAX_OWNER_REPO_LENGTH || ${#repo} -gt $MAX_OWNER_REPO_LENGTH || ${#reference} -gt $MAX_REFERENCE_LENGTH ]]; then
-    if [[ "$error_prefix" == "ERROR" ]]; then
-      echo "ERROR: Input too long. Owner and repo must be less than $MAX_OWNER_REPO_LENGTH characters, and reference less than $MAX_REFERENCE_LENGTH characters." >&2
-      return 1
-    else
-      error "Input too long. Owner and repo must be less than $MAX_OWNER_REPO_LENGTH characters, and reference less than $MAX_REFERENCE_LENGTH characters."
-    fi
-  fi
-  
-  return 0
-}
 
 # =============================================================================
 # GitHub API Functions
@@ -342,15 +235,17 @@ process_workflow_file() {
       # Increment reference counter for any reference format
       ref_count=$((ref_count + 1))
       
-      # Check for nested package references first (e.g., github/codeql-action/init@v3)
-      if [[ "$ref" =~ ^([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+)$ ]]; then
+      # Parse the GitHub reference using shared parsing function
+      local parse_result
+      parse_result=$(parse_github_ref "$ref"; echo $?)
+      
+      if [[ $parse_result -eq 1 ]]; then
         echo "Nested GitHub package detected: $ref (format not supported for conversion)"
         continue
-      # Validate and parse the standard reference format
-      elif [[ "$ref" =~ ^([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+)$ ]]; then
-        local owner="${BASH_REMATCH[1]}"
-        local repo="${BASH_REMATCH[2]}"
-        local reference="${BASH_REMATCH[3]}"
+      elif [[ $parse_result -eq 0 ]]; then
+        local owner="$PARSED_OWNER"
+        local repo="$PARSED_REPO"
+        local reference="$PARSED_REFERENCE"
 
         # Try to get commit hash
         local hash
@@ -466,15 +361,15 @@ convert_reference() {
     return 1
   fi
   
-  # Validate basic format
-  if [[ ! "$ref" =~ ^([^/]+)/([^@]+)@(.+)$ ]]; then
+  # Parse reference using shared parsing function
+  if ! parse_github_ref "$ref" || [[ -z "$PARSED_OWNER" ]]; then
     echo "ERROR: Invalid reference format: $ref (expected owner/repo@ref)" >&2
     return 1
   fi
   
-  local owner="${BASH_REMATCH[1]}"
-  local repo="${BASH_REMATCH[2]}"
-  local reference="${BASH_REMATCH[3]}"
+  local owner="$PARSED_OWNER"
+  local repo="$PARSED_REPO"
+  local reference="$PARSED_REFERENCE"
   
   # Validate inputs using shared validation function
   validate_github_ref "$owner" "$repo" "$reference" "ERROR" || return 1
@@ -546,7 +441,7 @@ main() {
   # Process each file or reference
   for file in "${files[@]}"; do
     # Special handling for direct references when using 'convert' command (backward compatibility)
-    if [[ "$is_convert_command" == "true" && "$file" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$ ]]; then
+    if [[ "$is_convert_command" == "true" ]] && is_valid_cli_ref "$file"; then
       convert_reference "$file"
       continue
     fi

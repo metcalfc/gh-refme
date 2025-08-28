@@ -43,7 +43,8 @@
   ],
   "files": [
     "gh-refme",
-    "verify-install.js",
+    "lib/",
+    "verify-install.js", 
     "README.md",
     "LICENSE",
     "install-hook.sh"

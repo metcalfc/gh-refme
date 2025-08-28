@@ -25,15 +25,14 @@ print_sub_header "Testing constant values"
 # Test 1: Verify constants are defined and have expected values
 info_msg "Testing constant definitions..."
 
-# Extract constant values from the script
-MAX_OWNER_REPO=$(grep "readonly MAX_OWNER_REPO_LENGTH=" "$MAIN_SCRIPT" | cut -d'=' -f2 | cut -d'#' -f1 | tr -d ' ')
-MAX_REFERENCE=$(grep "readonly MAX_REFERENCE_LENGTH=" "$MAIN_SCRIPT" | cut -d'=' -f2 | cut -d'#' -f1 | tr -d ' ')
-MAX_TOTAL_REF=$(grep "readonly MAX_TOTAL_REF_LENGTH=" "$MAIN_SCRIPT" | cut -d'=' -f2 | cut -d'#' -f1 | tr -d ' ')
+# Source the library to get the constants
+LIB_FILE="${SCRIPT_DIR}/../lib/gh-refme-lib.sh"
+source "$LIB_FILE"
 
-if [[ "$MAX_OWNER_REPO" == "50" && "$MAX_REFERENCE" == "100" && "$MAX_TOTAL_REF" == "150" ]]; then
+if [[ "$MAX_OWNER_REPO_LENGTH" == "50" && "$MAX_REFERENCE_LENGTH" == "100" && "$MAX_TOTAL_REF_LENGTH" == "150" ]]; then
   print_result "Constant values" "pass"
 else
-  print_result "Constant values" "fail" "Expected 50, 100, 150 but got $MAX_OWNER_REPO, $MAX_REFERENCE, $MAX_TOTAL_REF"
+  print_result "Constant values" "fail" "Expected 50, 100, 150 but got $MAX_OWNER_REPO_LENGTH, $MAX_REFERENCE_LENGTH, $MAX_TOTAL_REF_LENGTH"
   exit 1
 fi
 
