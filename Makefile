@@ -3,8 +3,8 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -e
 
-# Configuration
-VERSION := 1.2.1
+# Configuration - version managed by npm
+VERSION := $(shell node -p "require('./package.json').version")
 PREFIX := /usr/local
 EXTENSION_NAME := gh-refme
 
@@ -19,7 +19,7 @@ TEST_SCRIPTS := $(wildcard $(TEST_DIR)/*.sh)
 EXAMPLE_FILES := $(wildcard $(EXAMPLE_DIR)/*.sh $(EXAMPLE_DIR)/*.yml)
 
 # Targets
-.PHONY: all test clean install uninstall dist gh-extension check help npm-pack npm-publish
+.PHONY: all test clean install uninstall dist gh-extension check help npm-pack npm-publish version-patch version-minor version-major
 
 # Default target
 all: help
@@ -111,7 +111,23 @@ help:
 	@echo "  npm-publish          : Publish to npm"
 	@echo "  clean                : Remove temporary files"
 	@echo "  help                 : Show this help information"
+	@echo "  version-patch        : Bump patch version using npm"
+	@echo "  version-minor        : Bump minor version using npm"
+	@echo "  version-major        : Bump major version using npm"
 	@echo ""
 	@echo "Configuration:"
 	@echo "  PREFIX      : Installation prefix (default: $(PREFIX))"
 	@echo "  Example: make PREFIX=/usr/local install"
+
+# Version management targets
+version-patch:
+	@echo "Bumping patch version..."
+	@npm version patch
+
+version-minor:
+	@echo "Bumping minor version..."
+	@npm version minor
+
+version-major:
+	@echo "Bumping major version..."
+	@npm version major
