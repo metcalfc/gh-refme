@@ -49,10 +49,6 @@ ______        __ ___  ___
 EOF
 }
 
-# Print info message
-info() {
-  echo "INFO: $1"
-}
 
 # Print usage information
 print_usage() {

@@ -1,7 +1,7 @@
 # Makefile for gh-refme
 
 SHELL := /bin/bash
-.SHELLFLAGS := -e
+.SHELLFLAGS := -ec
 
 # Configuration - version managed by npm
 VERSION := $(shell node -p "require('./package.json').version")
@@ -54,9 +54,16 @@ test-security:
 # Run shellcheck if available
 check:
 	@echo "Running shellcheck..."
+	@if ! command -v shellcheck &> /dev/null; then \
+		echo "Error: shellcheck not found. Please install it first."; \
+		echo "  - On Ubuntu/Debian: sudo apt-get install shellcheck"; \
+		echo "  - On macOS with Homebrew: brew install shellcheck"; \
+		echo "  - On Windows with Chocolatey: choco install shellcheck"; \
+		exit 1; \
+	fi
 	@chmod +x $(SCRIPT_NAME)
-	@chmod +x $(TEST_DIR)/shellcheck-test.sh
-	@$(TEST_DIR)/shellcheck-test.sh
+	@shellcheck -x $(SCRIPT_NAME)
+	@echo "Shellcheck analysis completed successfully!"
 
 # Install the script
 install:
@@ -98,7 +105,7 @@ help:
 	@echo "GitHub RefMe - Makefile Help"
 	@echo "=========================="
 	@echo "Available targets:"
-	@echo "  all                  : Run all tests (default)"
+	@echo "  all                  : Show help (default)"
 	@echo "  test                 : Run all tests"
 	@echo "  test-basic           : Run basic functionality test"
 	@echo "  test-security        : Run security tests"
