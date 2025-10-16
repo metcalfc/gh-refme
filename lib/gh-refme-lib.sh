@@ -467,15 +467,22 @@ process_single_reference() {
       
       sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
       
+      # Extract the actual line content for better debugging
+      local line_content=$(sed -n "${line_num}p" "$original_file")
       echo "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
+      echo "  Content: $line_content"
       return 0
     else
+      local line_content=$(sed -n "${line_num}p" "$original_file")
       echo "Line $line_num: Failed to get hash for $ref (skipping)"
+      echo "  Content: $line_content"
       return 1
     fi
   else
     # Invalid reference format
+    local line_content=$(sed -n "${line_num}p" "$original_file")
     echo "Line $line_num: Invalid reference format: $ref (skipping)"
+    echo "  Content: $line_content"
     return 1
   fi
 }
