@@ -53,14 +53,20 @@ jobs:
           for file in $CHANGED_FILES; do
             if [ -f "$file" ]; then
               echo "Scanning $file..."
-              # Run in dry-run mode to check for references without changing files
-              gh-refme --dry-run "$file" > "scan-results/$(basename "$file").log" 2>&1
+              # Remove comments from the file before scanning
+              TEMP_FILE=$(mktemp)
+              sed '/^[[:space:]]*#/d' "$file" > "$TEMP_FILE"
               
-              # Check for branch or tag references
+              # Run in dry-run mode to check for references without changing files
+              gh-refme --dry-run "$TEMP_FILE" > "scan-results/$(basename "$file").log" 2>&1
+              
+              # Check for branch or tag references (excluding comments)
               if grep -q "Updated " "scan-results/$(basename "$file").log"; then
                 echo "::warning file=$file::This workflow file contains actions referenced by tags or branches instead of commit hashes"
                 ISSUES_FOUND=1
               fi
+              
+              rm "$TEMP_FILE"
             fi
           done
           
