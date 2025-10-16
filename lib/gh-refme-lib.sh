@@ -433,9 +433,13 @@ process_single_reference() {
   local original_file="$3"
   local line_num="$4"
   
+  # Extract the actual line content for better debugging (computed once and reused)
+  local line_content
+  line_content=$(sed -n "${line_num}p" "$original_file")
+  
   # Enhanced security validation first
   if ! validate_reference_security "$ref"; then
-    echo "Line $line_num: Security validation failed for $ref (skipping)"
+    printf '%s\n' "Line $line_num: Security validation failed for $ref (skipping)"
     return 1
   fi
   
@@ -444,7 +448,7 @@ process_single_reference() {
   parse_result=$(parse_github_ref "$ref"; echo $?)
   
   if [[ $parse_result -eq 1 ]]; then
-    echo "Nested GitHub package detected: $ref (format not supported for conversion)"
+    printf '%s\n' "Nested GitHub package detected: $ref (format not supported for conversion)"
     return 1
   elif [[ $parse_result -eq 0 ]]; then
     local owner="$PARSED_OWNER"
@@ -467,22 +471,18 @@ process_single_reference() {
       
       sed_in_place "$temp_file" "$old_pattern" "$new_pattern"
       
-      # Extract the actual line content for better debugging
-      local line_content=$(sed -n "${line_num}p" "$original_file")
-      echo "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
-      echo "  Content: $line_content"
+      printf '%s\n' "Line $line_num: Updated $ref -> ${owner}/${repo}@${hash}"
+      printf '%s\n' "  Content: $line_content"
       return 0
     else
-      local line_content=$(sed -n "${line_num}p" "$original_file")
-      echo "Line $line_num: Failed to get hash for $ref (skipping)"
-      echo "  Content: $line_content"
+      printf '%s\n' "Line $line_num: Failed to get hash for $ref (skipping)"
+      printf '%s\n' "  Content: $line_content"
       return 1
     fi
   else
     # Invalid reference format
-    local line_content=$(sed -n "${line_num}p" "$original_file")
-    echo "Line $line_num: Invalid reference format: $ref (skipping)"
-    echo "  Content: $line_content"
+    printf '%s\n' "Line $line_num: Invalid reference format: $ref (skipping)"
+    printf '%s\n' "  Content: $line_content"
     return 1
   fi
 }
