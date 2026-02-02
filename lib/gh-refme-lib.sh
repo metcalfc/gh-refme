@@ -444,8 +444,8 @@ process_single_reference() {
   fi
   
   # Parse the GitHub reference using shared parsing function
-  local parse_result
-  parse_result= parse_github_ref "$ref"
+  parse_github_ref "$ref"
+  local parse_result=$?
   
   if [[ $parse_result -eq 1 ]]; then
     printf '%s\n' "Nested GitHub package detected: $ref (format not supported for conversion)"
