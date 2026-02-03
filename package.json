@@ -10,7 +10,7 @@
     "test": "tests/run-all-tests.sh",
     "postinstall": "node verify-install.js",
     "preversion": "npm test",
-    "postversion": "node -e \"const fs=require('fs'),pkg=require('./package.json');let script=fs.readFileSync('gh-refme','utf8');script=script.replace(/VERSION=\\\"[^\\\"]*\\\"/,'VERSION=\\\"'+pkg.version+'\\\"');fs.writeFileSync('gh-refme',script);\""
+    "version": "node -e \"const fs=require('fs'),pkg=require('./package.json');let script=fs.readFileSync('gh-refme','utf8');script=script.replace(/VERSION=\\\"[^\\\"]*\\\"/,'VERSION=\\\"'+pkg.version+'\\\"');fs.writeFileSync('gh-refme',script);\" && git add gh-refme"
   },
   "repository": {
     "type": "git",
