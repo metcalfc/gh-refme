@@ -125,14 +125,16 @@ process_directory() {
   # Find workflow files (yml or yaml)
   local workflow_files
   workflow_files=$(find "$workflow_dir" -type f \( -name "*.yml" -o -name "*.yaml" \))
-  local file_count
-  file_count=$(echo "$workflow_files" | wc -l | tr -d ' ')
-  
-  if [[ -z "$workflow_files" || "$file_count" -eq 0 ]]; then
+
+  if [[ -z "$workflow_files" ]]; then
     echo "No workflow files found in $workflow_dir"
     return 0
   fi
-  
+
+  # Count files (only if non-empty to avoid wc counting empty line)
+  local file_count
+  file_count=$(printf '%s\n' "$workflow_files" | grep -c .)
+
   echo "Found $file_count workflow files"
   
   # Process each workflow file
