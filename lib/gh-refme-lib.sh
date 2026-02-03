@@ -570,16 +570,26 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Escape sed metacharacters in pattern (BRE)
+escape_sed_pattern() {
+  printf '%s' "$1" | sed 's/[[\.*^$()|]/\\&/g'
+}
+
+# Escape sed metacharacters in replacement string
+escape_sed_replacement() {
+  printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
+}
+
 # Create a valid sed in-place edit command (compatible with BSD and GNU sed)
 sed_in_place() {
   local file="$1"
   local pattern="$2"
   local replacement="$3"
-  
-  # Remove any trailing newlines from pattern and replacement
-  pattern=$(echo -n "$pattern" | tr -d '\n')
-  replacement=$(echo -n "$replacement" | tr -d '\n')
-  
+
+  # Escape sed metacharacters for safe substitution
+  pattern=$(escape_sed_pattern "$pattern")
+  replacement=$(escape_sed_replacement "$replacement")
+
   # Check if we're using BSD or GNU sed
   if sed --version 2>/dev/null | grep -q "GNU"; then
     # GNU sed
