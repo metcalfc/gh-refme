@@ -1,6 +1,6 @@
 {
   "name": "gh-refme",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "A tool to convert GitHub Actions references to commit hashes for improved security",
   "bin": {
     "gh-refme": "./gh-refme"
@@ -44,7 +44,7 @@
   "files": [
     "gh-refme",
     "lib/",
-    "verify-install.js", 
+    "verify-install.js",
     "README.md",
     "LICENSE",
     "install-hook.sh"
