@@ -491,15 +491,19 @@ process_single_reference() {
 secure_copy_file() {
   local source_file="$1"
   local dest_file="$2"
-  
+
   # Validate both file paths
   if ! validate_file_path_security "$source_file" || ! validate_file_path_security "$dest_file"; then
     return 1
   fi
-  
-  # Get original file permissions
+
+  # Get original file permissions (portable across macOS and Linux)
   local orig_perms
-  orig_perms=$(stat -c '%a' "$dest_file" 2>/dev/null || echo "644")
+  if [[ "$(uname)" == "Darwin" ]]; then
+    orig_perms=$(stat -f '%A' "$dest_file" 2>/dev/null || echo "644")
+  else
+    orig_perms=$(stat -c '%a' "$dest_file" 2>/dev/null || echo "644")
+  fi
   
   # Copy content securely
   if cp "$source_file" "$dest_file"; then
