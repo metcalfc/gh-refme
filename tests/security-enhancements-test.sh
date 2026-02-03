@@ -77,13 +77,22 @@ EOF
 
 # Set specific permissions
 chmod 640 "$TEST_FILE"
-ORIGINAL_PERMS=$(stat -c '%a' "$TEST_FILE")
+# Use portable stat command (macOS vs Linux)
+if [[ "$(uname)" == "Darwin" ]]; then
+  ORIGINAL_PERMS=$(stat -f '%A' "$TEST_FILE")
+else
+  ORIGINAL_PERMS=$(stat -c '%a' "$TEST_FILE")
+fi
 
 # Process the file
 "${MAIN_SCRIPT}" "$TEST_FILE" --dry-run >/dev/null 2>&1 || true
 
 # Check if permissions are preserved
-NEW_PERMS=$(stat -c '%a' "$TEST_FILE")
+if [[ "$(uname)" == "Darwin" ]]; then
+  NEW_PERMS=$(stat -f '%A' "$TEST_FILE")
+else
+  NEW_PERMS=$(stat -c '%a' "$TEST_FILE")
+fi
 
 if [[ "$ORIGINAL_PERMS" == "$NEW_PERMS" ]]; then
   print_result "File permissions preservation" "pass"
