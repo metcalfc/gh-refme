@@ -12,6 +12,15 @@ MAIN_SCRIPT="${SCRIPT_DIR}/../gh-refme"
 # Source common test utilities
 source "${SCRIPT_DIR}/test_utils.sh"
 
+# Portable file permissions (octal) - macOS uses different stat syntax
+get_file_perms() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    stat -f '%A' "$1"
+  else
+    stat -c '%a' "$1"
+  fi
+}
+
 # Initialize test counters
 init_test_counters
 
@@ -77,22 +86,13 @@ EOF
 
 # Set specific permissions
 chmod 640 "$TEST_FILE"
-# Use portable stat command (macOS vs Linux)
-if [[ "$(uname)" == "Darwin" ]]; then
-  ORIGINAL_PERMS=$(stat -f '%A' "$TEST_FILE")
-else
-  ORIGINAL_PERMS=$(stat -c '%a' "$TEST_FILE")
-fi
+ORIGINAL_PERMS=$(get_file_perms "$TEST_FILE")
 
 # Process the file
 "${MAIN_SCRIPT}" "$TEST_FILE" --dry-run >/dev/null 2>&1 || true
 
 # Check if permissions are preserved
-if [[ "$(uname)" == "Darwin" ]]; then
-  NEW_PERMS=$(stat -f '%A' "$TEST_FILE")
-else
-  NEW_PERMS=$(stat -c '%a' "$TEST_FILE")
-fi
+NEW_PERMS=$(get_file_perms "$TEST_FILE")
 
 if [[ "$ORIGINAL_PERMS" == "$NEW_PERMS" ]]; then
   print_result "File permissions preservation" "pass"
