@@ -123,26 +123,22 @@ print_sub_header "Testing environment security"
 
 # Test 5: Environment variable sanitization
 info_msg "Testing environment variable sanitization..."
-# Set potentially dangerous environment variables
-export IFS=";"
-export PATH=".:$PATH"
-
-# Process a file and verify it works despite dangerous environment
+# Run in subshell to isolate dangerous environment changes
 TEST_FILE="${TEST_DIR}/env-test.yml"
 echo "uses: actions/checkout@v4" > "$TEST_FILE"
 
-OUTPUT=$("${MAIN_SCRIPT}" "$TEST_FILE" --dry-run 2>&1 || true)
+ENV_TEST_OUTPUT=$(
+  export IFS=";"
+  export PATH=".:$PATH"
+  "${MAIN_SCRIPT}" "$TEST_FILE" --dry-run 2>&1 || true
+)
 
-if [[ "$OUTPUT" =~ "Processing" ]] || [[ "$OUTPUT" =~ "Converting" ]]; then
+if [[ "$ENV_TEST_OUTPUT" =~ "Processing" ]] || [[ "$ENV_TEST_OUTPUT" =~ "Converting" ]]; then
   print_result "Environment sanitization" "pass"
 else
-  print_result "Environment sanitization" "fail" "Failed with dangerous environment: $OUTPUT"
+  print_result "Environment sanitization" "fail" "Failed with dangerous environment: $ENV_TEST_OUTPUT"
   exit 1
 fi
-
-# Clean up environment
-unset IFS
-export PATH="${PATH#.:}"
 
 # Test 6: Valid references still work with security enhancements
 info_msg "Testing valid references still work with security..."
