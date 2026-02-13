@@ -357,11 +357,16 @@ get_tag_for_commit() {
     local refs_url="repos/${owner}/${repo}/git/matching-refs/tags/"
     local refs_json
     refs_json=$(github_api_request "$refs_url") || true
-    printf '%s' "${refs_json:-[]}" > "$cache_file"
+    # Only cache the response if it is a valid JSON array to avoid poisoning the cache
+    if [[ -n "$refs_json" ]] && echo "$refs_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      printf '%s' "$refs_json" > "$cache_file"
+    fi
   fi
 
-  local cached_refs
-  cached_refs=$(cat "$cache_file")
+  local cached_refs=""
+  if [[ -f "$cache_file" ]]; then
+    cached_refs=$(cat "$cache_file")
+  fi
 
   if [[ -n "$cached_refs" && "$cached_refs" != "[]" ]]; then
     # matching-refs returns objects with ref (refs/tags/NAME) and object.sha
