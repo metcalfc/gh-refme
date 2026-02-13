@@ -33,6 +33,7 @@ run_test "${SCRIPT_DIR}/validation-test.sh" "Input Validation Tests"
 run_test "${SCRIPT_DIR}/error-scenarios-test.sh" "Error Scenario Tests"
 run_test "${SCRIPT_DIR}/security-enhancements-test.sh" "Security Enhancement Tests"
 run_test "${SCRIPT_DIR}/parse-globals-test.sh" "Parse Globals Tests"
+run_test "${SCRIPT_DIR}/show-tag-test.sh" "Show Tag Tests"
 
 # Run shellcheck if available (optional)
 if command -v shellcheck &> /dev/null; then
