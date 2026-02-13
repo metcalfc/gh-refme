@@ -328,7 +328,10 @@ get_commit_hash() {
   error "Could not find reference: ${reference} in ${owner}/${repo}"
 }
 
-# Returns the tag name pointing to a commit SHA, or empty if none
+# Returns the tag name pointing to a commit SHA, or empty if none.
+# Uses git/matching-refs API which supports pagination, and caches
+# results per owner/repo to avoid redundant API calls.
+# Cache is stored as files in TEMP_DIR to support bash 3.x (no associative arrays).
 get_tag_for_commit() {
   local owner="$1"
   local repo="$2"
@@ -340,22 +343,40 @@ get_tag_for_commit() {
     return 0
   fi
 
-  # Get list of tags from GitHub API
-  local tags_url="repos/${owner}/${repo}/tags"
-  local tags_json
-  tags_json=$(github_api_request "$tags_url") || true
-
-  if command_exists jq && [[ -n "$tags_json" ]]; then
-    # Find first tag pointing to this commit
-    local tag
-    tag=$(echo "$tags_json" | jq -r --arg sha "$commit_sha" '.[] | select(.commit.sha == $sha) | .name' | head -n1)
-    echo "$tag"
-    return 0
-  else
-    # Fallback: no jq, cannot reliably resolve
+  # Require jq for JSON parsing
+  if ! command_exists jq; then
     echo ""
     return 0
   fi
+
+  # Use file-based cache keyed by owner/repo (works with bash 3.x)
+  local cache_file="${TEMP_DIR}/_tag_cache_${owner}_${repo}.json"
+
+  if [[ ! -f "$cache_file" ]]; then
+    # Fetch all tag refs using git/matching-refs API (returns up to 100 per page)
+    local refs_url="repos/${owner}/${repo}/git/matching-refs/tags/"
+    local refs_json
+    refs_json=$(github_api_request "$refs_url") || true
+    printf '%s' "${refs_json:-[]}" > "$cache_file"
+  fi
+
+  local cached_refs
+  cached_refs=$(cat "$cache_file")
+
+  if [[ -n "$cached_refs" && "$cached_refs" != "[]" ]]; then
+    # matching-refs returns objects with ref (refs/tags/NAME) and object.sha
+    # object.sha matches the commit for lightweight tags; for annotated tags
+    # we would need to dereference, but most action tags are lightweight.
+    # Pick the longest (most specific) tag name when multiple match (e.g., v4 vs v4.3.1).
+    local tag
+    tag=$(echo "$cached_refs" | jq -r --arg sha "$commit_sha" \
+      '[.[] | select(.object.sha == $sha) | .ref | sub("^refs/tags/"; "")] | sort_by(length) | last // empty' 2>/dev/null)
+    echo "$tag"
+    return 0
+  fi
+
+  echo ""
+  return 0
 }
 
 # =============================================================================
@@ -490,8 +511,7 @@ process_single_reference() {
     # Try to get commit hash
     local hash
     if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
-        
-      # Optionally add an tag to a comment
+      # Optionally add a tag to the comment
       local tag
       if [[ "$show_tag" == "true" ]]; then
         tag=$(get_tag_for_commit "$owner" "$repo" "$hash" 2>/dev/null)
@@ -569,7 +589,6 @@ apply_or_show_changes() {
   local updated_count="$4"
   local dry_run="$5"
   local create_backup="$6"
-  local show_tag="$6"
   
   # Summary of changes
   if [[ $ref_count -eq 0 ]]; then

@@ -22,6 +22,8 @@ jobs:
           sudo apt-get install -y shellcheck
       
       - name: Run all tests
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           chmod +x tests/run-all-tests.sh
           ./tests/run-all-tests.sh
