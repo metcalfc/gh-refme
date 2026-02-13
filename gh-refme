@@ -12,6 +12,7 @@ VERSION="1.6.1"
 TEMP_DIR=$(mktemp -d)
 DRY_RUN=false
 CREATE_BACKUP=false
+SHOW_TAG=false
 
 # Load shared library functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,6 +71,7 @@ OPTIONS:
   -n, --dry-run               Show what would be changed without making changes
   -b, --backup                Create backup files (.bak) before making changes
   -v, --version               Show version information
+      --show-tag              Include resolved tag in comment (e.g., # was: ref (tag))
 
 EXAMPLES:
   ${CMD_NAME} .github/workflows/ci.yml
@@ -99,7 +101,7 @@ process_workflow_file() {
   setup_temp_files "$file" "$TEMP_DIR"
   
   # Process GitHub references
-  process_github_references "$TEMP_READ_FILE" "$TEMP_PROCESSING_FILE" "$file"
+  process_github_references "$TEMP_READ_FILE" "$TEMP_PROCESSING_FILE" "$file" "$SHOW_TAG"
   
   # Apply changes
   apply_or_show_changes "$file" "$TEMP_PROCESSING_FILE" "$PROCESSED_REF_COUNT" "$PROCESSED_UPDATE_COUNT" "$DRY_RUN" "$CREATE_BACKUP"
@@ -209,6 +211,10 @@ main() {
         ;;
       -b|--backup)
         CREATE_BACKUP=true
+        shift
+        ;;
+      --show-tag)
+        SHOW_TAG=true
         shift
         ;;
       -v|--version)
