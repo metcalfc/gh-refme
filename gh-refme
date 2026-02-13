@@ -71,7 +71,7 @@ OPTIONS:
   -n, --dry-run               Show what would be changed without making changes
   -b, --backup                Create backup files (.bak) before making changes
   -v, --version               Show version information
-      --show-tag              Include resolved tag in comment (e.g., # was: ref (tag))
+      --show-tag              When processing workflow files, include resolved tag in comment (e.g., # was: ref (tag))
 
 EXAMPLES:
   ${CMD_NAME} .github/workflows/ci.yml
