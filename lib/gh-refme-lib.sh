@@ -328,6 +328,36 @@ get_commit_hash() {
   error "Could not find reference: ${reference} in ${owner}/${repo}"
 }
 
+# Returns the tag name pointing to a commit SHA, or empty if none
+get_tag_for_commit() {
+  local owner="$1"
+  local repo="$2"
+  local commit_sha="$3"
+
+  # Validate commit SHA format
+  if [[ ! "$commit_sha" =~ ^[0-9a-f]{40}$ ]]; then
+    echo ""
+    return 0
+  fi
+
+  # Get list of tags from GitHub API
+  local tags_url="repos/${owner}/${repo}/tags"
+  local tags_json
+  tags_json=$(github_api_request "$tags_url") || true
+
+  if command_exists jq && [[ -n "$tags_json" ]]; then
+    # Find first tag pointing to this commit
+    local tag
+    tag=$(echo "$tags_json" | jq -r --arg sha "$commit_sha" '.[] | select(.commit.sha == $sha) | .name' | head -n1)
+    echo "$tag"
+    return 0
+  else
+    # Fallback: no jq, cannot reliably resolve
+    echo ""
+    return 0
+  fi
+}
+
 # =============================================================================
 # File Processing Functions
 # =============================================================================
@@ -380,6 +410,7 @@ process_github_references() {
   local read_file="$1"
   local temp_file="$2"
   local original_file="$3"
+  local show_tag="$4" # --show-tag flag
   
   local line_num=0
   local ref_count=0
@@ -411,7 +442,7 @@ process_github_references() {
       ref_count=$((ref_count + 1))
       
       # Process the reference
-      if process_single_reference "$ref" "$temp_file" "$original_file" "$line_num"; then
+      if process_single_reference "$ref" "$temp_file" "$original_file" "$line_num" "$show_tag"; then
         updated_count=$((updated_count + 1))
       fi
     fi
@@ -432,6 +463,7 @@ process_single_reference() {
   local temp_file="$2"
   local original_file="$3"
   local line_num="$4"
+  local show_tag="$5" # --show-tag flag
   
   # Extract the actual line content for better debugging (computed once and reused)
   local line_content
@@ -458,9 +490,22 @@ process_single_reference() {
     # Try to get commit hash
     local hash
     if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
+        
+      # Optionally add an tag to a comment
+      local tag
+      if [[ "$show_tag" == "true" ]]; then
+        tag=$(get_tag_for_commit "$owner" "$repo" "$hash" 2>/dev/null)
+      fi
+
       # Replace in the temp file with a comment showing the original reference
       local old_pattern="uses: ${ref}"
-      local new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref}"
+
+      local new_pattern
+      if [[ -n "$tag" ]]; then
+        new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref} (${tag})"
+      else
+        new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref}"
+      fi
       
       # Check if there's already a comment - use the original file
       if grep -q "uses: ${ref} #" "$original_file"; then
@@ -524,6 +569,7 @@ apply_or_show_changes() {
   local updated_count="$4"
   local dry_run="$5"
   local create_backup="$6"
+  local show_tag="$6"
   
   # Summary of changes
   if [[ $ref_count -eq 0 ]]; then

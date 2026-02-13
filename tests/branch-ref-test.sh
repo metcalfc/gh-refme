@@ -132,6 +132,18 @@ else
   exit 1
 fi
 
+# Test --show-tag adds tag in comment
+info_msg "Testing --show-tag flag..."
+output=$($REFME_SCRIPT convert "$TEST_DIR/.github/workflows/mixed-refs.yml" --dry-run --show-tag 2>&1)
+# Example: expect the comment to contain (# was: ref (v1.2.3))
+if echo "$output" | grep -qE "# was: [^ ]+ \([^)]+\)"; then
+  print_result "--show-tag flag adds tag in comment" "pass"
+else
+  print_result "--show-tag flag adds tag in comment" "fail" "Tag was not added in comment"
+  debug_msg "Output was:\n$output"
+  exit 1
+fi
+
 # Test wildcard file handling
 info_msg "Testing wildcard file handling..."
 output=$("$REFME_SCRIPT" convert "$TEST_DIR/.github/workflows/*.yml" --dry-run 2>&1)
