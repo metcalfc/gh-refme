@@ -5,7 +5,7 @@
 # This script processes GitHub Actions workflow YAML files and converts
 # git references (tags, branches, short commits) to full commit hashes.
 #
-set -e
+set -euo pipefail
 
 # Configuration and global variables
 VERSION="1.6.1"
@@ -27,7 +27,7 @@ fi
 sanitize_environment
 
 # Detect if being run as a GitHub CLI extension
-if [[ -n "$GH_CLI_VERSION" ]]; then
+if [[ -n "${GH_CLI_VERSION:-}" ]]; then
   CMD_NAME="gh refme"
 else
   CMD_NAME="gh-refme"
