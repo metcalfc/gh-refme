@@ -22,7 +22,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
     
     steps:
       - name: Checkout code
@@ -33,13 +32,9 @@ jobs:
           
       - name: Run gh-refme
         run: |
-          # Get a release of gh-refme
-          curl -sL -o /usr/local/bin/gh-refme https://raw.githubusercontent.com/metcalfc/gh-refme/refs/tags/v1.5.0/gh-refme
-          chmod +x /usr/local/bin/gh-refme
-          
-          # Run gh-refme and capture all output for reference
+          # Run gh-refme from the checked-out repo and capture all output
           echo "Running gh-refme on workflow files..."
-          gh-refme .github/workflows/*.{yml,yaml} 2>&1 | tee refme_output.log
+          ./gh-refme .github/workflows/*.{yml,yaml} 2>&1 | tee refme_output.log
           
           # Check if any changes were made
           if git diff --quiet; then

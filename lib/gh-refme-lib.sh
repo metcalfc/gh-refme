@@ -82,7 +82,7 @@ validate_file_path_security() {
 # Check if string contains dangerous shell characters
 has_dangerous_chars() {
   local string="$1"
-  echo "$string" | grep -q '[\\$`;(){}|&<>!#]'
+  printf '%s\n' "$string" | grep -q '[\\$`;(){}|&<>!#]'
 }
 
 # Enhanced security validation for references
@@ -243,7 +243,7 @@ get_github_token() {
   fi
   
   # Then try environment variable
-  if [[ -n "${GITHUB_TOKEN}" ]]; then
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     echo "${GITHUB_TOKEN}"
     return 0
   fi
@@ -458,9 +458,9 @@ process_github_references() {
       local ref="${BASH_REMATCH[1]}"
       
       # Check if previous line had "refme: ignore" comment
-      if [[ -n "$prev_comment" && "$prev_comment" =~ refme:[[:space:]]*ignore ]]; then
+      if [[ -n "${prev_comment:-}" && "$prev_comment" =~ refme:[[:space:]]*ignore ]]; then
         echo "Skipping $ref (refme: ignore)"
-        unset prev_comment
+        prev_comment=""
         continue
       fi
       
@@ -517,16 +517,16 @@ process_single_reference() {
     local hash
     if hash=$(get_commit_hash "$owner" "$repo" "$reference" 2>/dev/null); then
       # Optionally add a tag to the comment
-      local tag
+      local tag=""
       if [[ "$show_tag" == "true" ]]; then
-        tag=$(get_tag_for_commit "$owner" "$repo" "$hash" 2>/dev/null)
+        tag=$(get_tag_for_commit "$owner" "$repo" "$hash" 2>/dev/null) || true
       fi
 
       # Replace in the temp file with a comment showing the original reference
       local old_pattern="uses: ${ref}"
 
       local new_pattern
-      if [[ -n "$tag" ]]; then
+      if [[ -n "${tag}" ]]; then
         new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref} (${tag})"
       else
         new_pattern="uses: ${owner}/${repo}@${hash} # was: ${ref}"
