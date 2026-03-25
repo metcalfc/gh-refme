@@ -141,12 +141,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
       - name: Checkout gh-refme
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: metcalfc/gh-refme
           ref: v1.6.2
@@ -235,10 +235,10 @@ The tool follows these security best practices:
 4. It adds helpful comments to track what tags/branches were converted to hashes
    ```yaml
    # Before:
-   - uses: actions/checkout@v4
-   
+   - uses: actions/checkout@v6
+
    # After:
-   - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # was: actions/checkout@v4
+   - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # was: actions/checkout@v6
    ```
 5. Changes can be previewed before applying (dry run mode)
 6. Backups are created before modifying any files
