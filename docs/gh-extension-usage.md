@@ -49,13 +49,13 @@ gh refme --help
 gh refme convert actions/checkout@v4
 
 # Process a workflow file
-gh refme file .github/workflows/ci.yml
+gh refme .github/workflows/ci.yml
 
 # Process all workflows in a repository
-gh refme dir .
+gh refme .
 
-# Run in interactive mode
-gh refme interactive
+# Preview changes without modifying files
+gh refme --dry-run .github/workflows/ci.yml
 ```
 
 ## Updating the Extension
@@ -138,31 +138,26 @@ Converts a single GitHub reference to a commit hash:
 gh refme convert actions/checkout@v4
 ```
 
-### File Command
+### Processing Workflow Files
 
-Processes a single workflow file:
+Pass one or more workflow files directly:
 
 ```bash
-gh refme file path/to/workflow.yml
+gh refme path/to/workflow.yml
 
 # With dry run option (preview only)
-gh refme file path/to/workflow.yml -n
+gh refme --dry-run path/to/workflow.yml
+
+# With backups (.bak) of the original files
+gh refme --backup path/to/workflow.yml
 ```
 
-### Directory Command
+### Processing a Repository
 
-Processes all workflow files in a repository:
-
-```bash
-gh refme dir path/to/repo
-```
-
-### Interactive Command
-
-Runs the tool in interactive guided mode:
+Pass a directory to process every workflow file in its `.github/workflows/`:
 
 ```bash
-gh refme interactive
+gh refme path/to/repo
 ```
 
 ## Conclusion

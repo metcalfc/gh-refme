@@ -42,7 +42,7 @@ echo "Created sample workflow file at .github/workflows/ci.yml"
 
 # Run gh-refme to convert references
 echo "Running gh-refme to convert GitHub Action references..."
-./gh-refme file .github/workflows/ci.yml
+./gh-refme --backup .github/workflows/ci.yml
 
 echo "Done! You can examine the converted workflow file at .github/workflows/ci.yml"
 echo "A backup of the original file is at .github/workflows/ci.yml.bak"

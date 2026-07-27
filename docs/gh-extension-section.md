@@ -24,13 +24,13 @@ gh refme --help
 gh refme convert actions/checkout@v4
 
 # Process a workflow file
-gh refme file .github/workflows/ci.yml
+gh refme .github/workflows/ci.yml
 
 # Process all workflows in a repository
-gh refme dir .
+gh refme .
 
-# Run in interactive mode
-gh refme interactive
+# Preview changes without modifying files
+gh refme --dry-run .github/workflows/ci.yml
 ```
 
 ### Benefits of Using as a GitHub CLI Extension

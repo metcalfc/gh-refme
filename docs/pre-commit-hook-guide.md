@@ -90,7 +90,7 @@ repos:
     hooks:
       - id: gh-refme
         name: Convert GitHub Actions to commit hashes
-        entry: ./gh-refme file
+        entry: ./gh-refme
         language: script
         files: \.github/workflows/.*\.ya?ml$
         pass_filenames: true

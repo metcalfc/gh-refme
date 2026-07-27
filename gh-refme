@@ -59,12 +59,15 @@ print_usage() {
 ${CMD_NAME} v${VERSION} - Convert GitHub references to commit hashes
 
 USAGE:
-  ${CMD_NAME} [OPTIONS] <file1.yml> [<file2.yml> ...]
-  ${CMD_NAME} convert [OPTIONS] <file1.yml> [<file2.yml> ...]
+  ${CMD_NAME} [OPTIONS] <file-or-directory> [<file-or-directory> ...]
+  ${CMD_NAME} convert [OPTIONS] <owner/repo@ref> [<owner/repo@ref> ...]
 
 DESCRIPTION:
   Processes GitHub Actions workflow files and converts git references
   (tags, branches, short commits) to full commit hashes.
+
+  Arguments may be workflow files or directories: for a directory,
+  all workflow files in its .github/workflows/ are processed.
 
 OPTIONS:
   -h, --help                  Show this help message
@@ -77,6 +80,7 @@ EXAMPLES:
   ${CMD_NAME} .github/workflows/ci.yml
   ${CMD_NAME} --dry-run .github/workflows/*.yml
   ${CMD_NAME} --backup .github/workflows/*.yml
+  ${CMD_NAME} .                     # all workflows in ./.github/workflows/
   ${CMD_NAME} convert actions/checkout@v4
 EOF
 }
