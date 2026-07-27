@@ -235,10 +235,10 @@ The tool follows these security best practices:
 4. It adds helpful comments to track what tags/branches were converted to hashes
    ```yaml
    # Before:
-   - uses: actions/checkout@v6
+   - uses: actions/checkout@v7
 
    # After:
-   - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # was: actions/checkout@v6
+   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # was: actions/checkout@v7
    ```
 5. Changes can be previewed before applying (dry run mode)
 6. Backups are created before modifying any files
