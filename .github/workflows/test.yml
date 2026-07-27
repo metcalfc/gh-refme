@@ -8,18 +8,28 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # was: actions/checkout@v7
-      
-      - name: Setup test environment
+
+      - name: Setup test environment (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+
+      - name: Setup test environment (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          command -v shellcheck >/dev/null || brew install shellcheck
       
       - name: Run all tests
         env:

@@ -102,7 +102,10 @@ validate_reference_security() {
   fi
   
   # Check for Unicode bidirectional override characters (security concern)
-  if echo "$ref" | grep -q $'\u202e\|\u202d\|\u202a\|\u202b\|\u202c'; then
+  # U+202A-U+202E as octal UTF-8 bytes: $'\uXXXX' does not expand in bash 3.2 (macOS)
+  local bidi_pattern
+  bidi_pattern=$(printf '\342\200\252\\|\342\200\253\\|\342\200\254\\|\342\200\255\\|\342\200\256')
+  if printf '%s' "$ref" | grep -q "$bidi_pattern"; then
     echo "ERROR: Reference contains bidirectional text override characters" >&2
     return 1
   fi
