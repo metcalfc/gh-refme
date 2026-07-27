@@ -98,7 +98,7 @@ process_workflow_file() {
   echo "Processing $file..."
   
   # Setup temporary files
-  setup_temp_files "$file" "$TEMP_DIR"
+  setup_temp_files "$file"
   
   # Process GitHub references
   process_github_references "$TEMP_READ_FILE" "$TEMP_PROCESSING_FILE" "$file" "$SHOW_TAG"

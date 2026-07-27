@@ -24,28 +24,37 @@ validate_refme_script "${MAIN_SCRIPT}" || exit 1
 # Make sure scripts are executable
 chmod +x "${SCRIPT_DIR}"/*.sh
 
+# Run a suite and track the result, continuing on failure so all suites run
+run_suite() {
+  if run_test "$1" "$2"; then
+    PASSED=$((PASSED + 1))
+  else
+    FAILED=$((FAILED + 1))
+  fi
+}
+
 # Run each test script
-run_test "${SCRIPT_DIR}/test.sh" "Basic Tests"
-run_test "${SCRIPT_DIR}/security-test.sh" "Security Tests"
-run_test "${SCRIPT_DIR}/branch-ref-test.sh" "Branch Reference Tests"
-run_test "${SCRIPT_DIR}/constants-test.sh" "Constants Tests"
-run_test "${SCRIPT_DIR}/validation-test.sh" "Input Validation Tests"
-run_test "${SCRIPT_DIR}/error-scenarios-test.sh" "Error Scenario Tests"
-run_test "${SCRIPT_DIR}/security-enhancements-test.sh" "Security Enhancement Tests"
-run_test "${SCRIPT_DIR}/parse-globals-test.sh" "Parse Globals Tests"
-run_test "${SCRIPT_DIR}/show-tag-test.sh" "Show Tag Tests"
+run_suite "${SCRIPT_DIR}/test.sh" "Basic Tests"
+run_suite "${SCRIPT_DIR}/security-test.sh" "Security Tests"
+run_suite "${SCRIPT_DIR}/branch-ref-test.sh" "Branch Reference Tests"
+run_suite "${SCRIPT_DIR}/constants-test.sh" "Constants Tests"
+run_suite "${SCRIPT_DIR}/validation-test.sh" "Input Validation Tests"
+run_suite "${SCRIPT_DIR}/error-scenarios-test.sh" "Error Scenario Tests"
+run_suite "${SCRIPT_DIR}/security-enhancements-test.sh" "Security Enhancement Tests"
+run_suite "${SCRIPT_DIR}/parse-globals-test.sh" "Parse Globals Tests"
+run_suite "${SCRIPT_DIR}/show-tag-test.sh" "Show Tag Tests"
 
 # Run shellcheck if available (optional)
 if command -v shellcheck &> /dev/null; then
-  run_test "${SCRIPT_DIR}/shellcheck-test.sh" "ShellCheck Analysis"
+  run_suite "${SCRIPT_DIR}/shellcheck-test.sh" "ShellCheck Analysis"
 else
   warn_msg "ShellCheck not available - skipping best practices check"
 fi
 
 # Summary report
 print_header "Test Summary"
-echo -e "${GREEN}PASSED: $PASSED${NC}"
-echo -e "${RED}FAILED: $FAILED${NC}"
+echo -e "${GREEN}SUITES PASSED: $PASSED${NC}"
+echo -e "${RED}SUITES FAILED: $FAILED${NC}"
 
 if [[ $FAILED -eq 0 ]]; then
   success_msg "All tests passed successfully!"

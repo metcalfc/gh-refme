@@ -1,12 +1,19 @@
 {
   "name": "refme",
-  "version": "1.5.0",
+  "version": "1.6.2",
   "description": "Convert GitHub references to commit hashes for better security",
   "author": "Chad Metcalf <metcalfc@gmail.com>",
   "repository": "https://github.com/metcalfc/gh-refme",
   "license": "MIT",
   "bugs": "https://github.com/metcalfc/gh-refme/issues",
-  "keywords": ["security", "github", "actions", "references", "commit", "hash"],
+  "keywords": [
+    "security",
+    "github",
+    "actions",
+    "references",
+    "commit",
+    "hash"
+  ],
   "dependencies": {
     "gh": ">=2.0.0"
   }

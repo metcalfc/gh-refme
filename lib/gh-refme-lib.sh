@@ -410,8 +410,7 @@ validate_workflow_file() {
 # Setup temporary files for processing a workflow file
 setup_temp_files() {
   local file="$1"
-  local temp_dir="$2"
-  
+
   # Validate file path security
   if ! validate_file_path_security "$file"; then
     return 1
